@@ -1,10 +1,5 @@
 <!doctype html>
-<html lang="ko">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="description" content="2026 KBO 개막 엔트리로 즐기는 비공식 팬 제작 야구 감독 시뮬레이션">
-<meta name="theme-color" content="#123227">
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>더그아웃 감독실</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -255,6 +250,26 @@ table.t tr.next td{background:rgba(139,219,166,.08)}
 .nrow input{flex:1 1 200px;min-width:0;font:inherit;font-size:18px;padding:12px 14px;border-radius:8px;border:1px solid var(--line);background:var(--deep);color:var(--chalk)}
 .nrow input:focus{outline:2px solid var(--lamp);outline-offset:1px}
 .linkbtn{background:none;border:0;padding:0;color:var(--lamp);text-decoration:underline;cursor:pointer;font-size:13px}
+/* ===== 팬 게시판 ===== */
+.cbox{display:grid;gap:6px;padding:12px 14px;border-radius:16px;background:var(--panel);border:1px solid var(--line)}
+.cboard{display:grid;border:1px solid var(--line);border-radius:16px;background:var(--panel);overflow:hidden}
+.cpost{border-top:1px solid var(--line)}
+.cbox .cpost{border:1px solid var(--line);border-radius:10px;background:rgba(0,0,0,.18)}
+.cboard .cpost:first-child{border-top:0}
+.cpost summary{list-style:none;cursor:pointer;display:grid;grid-template-columns:auto minmax(0,1fr);gap:4px 8px;align-items:center;padding:10px 12px}
+.cpost summary::-webkit-details-marker{display:none}
+.cpost summary:hover{background:rgba(255,255,255,.03)}
+.ctag{font-size:11px;padding:1px 7px;border-radius:4px;border:1px solid var(--line);color:var(--muted);white-space:nowrap}
+.ctag.t-g,.ctag.t-p{color:var(--lamp);border-color:rgba(255,183,61,.45)} .ctag.t-n{color:var(--good);border-color:rgba(139,219,166,.45)}
+.ctit{font-weight:600;min-width:0;overflow-wrap:anywhere}
+.cpost.best .ctit::after{content:" 개념";font-size:11px;color:var(--hot);font-weight:700}
+.ccn{color:var(--hot);font-family:var(--f-num);font-size:12px;font-weight:600}
+.cmeta{grid-column:2;display:flex;gap:10px;flex-wrap:wrap;font-size:12px;color:var(--muted)}
+.cup{color:var(--chalk);opacity:.8}
+.cbody{padding:2px 14px 10px;white-space:pre-line;font-size:14px;line-height:1.6}
+.ccm{list-style:none;margin:0 12px 12px;padding:8px 10px;display:grid;gap:5px;background:var(--deep);border-radius:8px;font-size:13px}
+.ccm li{display:grid;grid-template-columns:auto 1fr;gap:8px}.ccm li.re{padding-left:16px}.ccm li.re b{color:var(--muted);opacity:.85} .ccm b{color:var(--muted);font-weight:500;font-size:12px;white-space:nowrap}
+
 
 /* ===== 게임 화면 공통 ===== */
 .screen{position:relative;min-height:100dvh;display:grid;align-content:center;justify-items:center;padding-block:28px 150px;margin-inline:-16px;padding-inline:16px;overflow:hidden}
@@ -373,10 +388,6 @@ html.noscroll #app{padding-block:0}
 @media (max-width:560px){.mbr{display:inline}.screen.sel .lenbox .eyebrow{width:100%;text-align:center}.screen.sel .pill{padding:6px 10px}.screen.sel .pill small{display:none}}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 </style>
-<style>html,body{margin:0;padding:0}body{font-family:var(--f-body);font-size:14px}[hidden]{display:none!important}img{max-width:100%}*{box-sizing:border-box}:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}</style>
-</head>
-<body>
-
 
 <div id="app"></div>
 <div id="modal"></div>
@@ -558,13 +569,71 @@ function normRoster(t,pl){
   if(t.bullpen.length&&!t.bullpen.some(id=>g(id).role==='CL')){const c=t.bullpen.slice().sort((a,b)=>g(b).stf-g(a).stf)[0];if(g(c).role!=='SP')g(c).role='CL'}
   t.rot=t.rot%Math.max(1,t.rotation.length);
 }
-function makeSchedule(len){
-  const n=10,cycles=Math.round(len/9),out=[];
-  const base=[];let arr=[...Array(n).keys()];
-  for(let r=0;r<n-1;r++){const gs=[];for(let i=0;i<n/2;i++){const a=arr[i],b=arr[n-1-i];gs.push(r%2?[a,b]:[b,a])}base.push(gs);arr=[arr[0],arr[n-1],...arr.slice(1,n-1)]}
-  for(let c=0;c<cycles;c++){shuffle(base.slice()).forEach(gs=>out.push(gs.map(([h,a])=>c%2?[a,h]:[h,a])))}
+/* 일정: 같은 상대와 2~4연전(주로 3연전)을 묶어서 치른다 */
+function rrRounds(){const n=10,rs=[];let arr=[...Array(n).keys()];
+  for(let r=0;r<n-1;r++){const gs=[];for(let i=0;i<n/2;i++)gs.push([arr[i],arr[n-1-i]]);rs.push(gs);arr=[arr[0],arr[n-1],...arr.slice(1,n-1)]}
+  return rs}
+function splitSeries(k){
+  /* k경기를 2~4연전으로 나누고, 홈·원정 경기 수가 반반이 되도록 배정 */
+  if(k<=0)return[];
+  const base=()=>{const out=[];let left=k,m=k%3;
+    if(k<=4)return k===4&&R()<.5?[2,2]:[k];
+    if(m===1){if(R()<.5)out.push(4);else out.push(2,2);left-=4}else if(m===2){out.push(2);left-=2}
+    while(left>0){out.push(3);left-=3}
+    if(out.filter(x=>x===3).length>=2&&R()<.15){out.splice(out.indexOf(3),1);out.splice(out.indexOf(3),1);out.push(4,2)}
+    return out};
+  let best=null;
+  for(let t=0;t<40;t++){
+    const lens=shuffle(base()),half=Math.floor(k/2);
+    /* 부분합 half를 만드는 조합 찾기 */
+    const n=lens.length;let pick=null;
+    for(let mask=0;mask<(1<<n)&&!pick;mask++){let sm=0;for(let i=0;i<n;i++)if(mask>>i&1)sm+=lens[i];if(sm===half)pick=mask}
+    if(pick!==null){best=lens.map((len,i)=>({len,flip:!!(pick>>i&1)}));break}
+    if(!best)best=lens.map((len,i)=>({len,flip:i%2===1}));
+  }
+  /* 같은 구장 연속을 줄이려고 홈·원정이 번갈아 나오게 정렬 */
+  const A=shuffle(best.filter(x=>x.flip)),B=shuffle(best.filter(x=>!x.flip)),out=[];
+  let turn=R()<.5;while(A.length||B.length){const src=(turn&&A.length)||!B.length?A:B;out.push(src.shift());turn=!turn}
+  if(R()<.5)out.forEach(x=>x.flip=!x.flip);
   return out;
 }
+function buildSeries(rounds,counts){
+  const pool=[];
+  rounds.forEach((gs,r)=>{splitSeries(counts[r]).forEach(x=>pool.push({r,len:x.len,flip:x.flip}))});
+  for(let tries=0;tries<40;tries++){
+    const left=pool.slice(),order=[];let last=-1,ok=true;
+    while(left.length){
+      const rem={};left.forEach(x=>rem[x.r]=(rem[x.r]||0)+1);
+      const cand=left.filter(x=>x.r!==last);if(!cand.length){ok=false;break}
+      const mx=Math.max(...cand.map(x=>rem[x.r]));const top=cand.filter(x=>rem[x.r]>=mx-1);
+      const pick=top[Math.floor(R()*top.length)];order.push(pick);left.splice(left.indexOf(pick),1);last=pick.r;
+    }
+    if(ok||tries===39){const fin=ok?order:shuffle(pool.slice());const out=[];
+      fin.forEach(x=>{for(let d=0;d<x.len;d++)out.push(rounds[x.r].map(([a,b])=>x.flip?[b,a]:[a,b]))});return out}
+  }
+}
+function makeSchedule(len){
+  const rounds=rrRounds(),per=Math.round(len/9);
+  return buildSeries(rounds,rounds.map(()=>per));
+}
+/* 예전 세이브: 오늘 이후 남은 일정을 시리즈 방식으로 다시 짠다 (남은 상대별 경기 수는 그대로) */
+function migrateSched(){
+  if(S.schedV===2)return;S.schedV=2;
+  if(S.phase!=='season'||!S.sched)return;
+  const from=S.day+1;if(from>=S.sched.length)return;
+  const key=gs=>gs.map(([h,a])=>Math.min(h,a)+'-'+Math.max(h,a)).sort().join('|');
+  const rounds=[],counts=[],idx={};
+  S.sched.slice(from).forEach(gs=>{const k=key(gs);if(idx[k]===undefined){idx[k]=rounds.length;rounds.push(gs.map(([h,a])=>[h,a]));counts.push(0)}counts[idx[k]]++});
+  S.sched=S.sched.slice(0,from).concat(buildSeries(rounds,counts));
+}
+/* 시리즈 정보: 오늘이 몇 연전의 몇 차전인지 */
+function serInfo(day,tid){
+  const sd=S.sched,pk=d=>{const m=sd[d]&&sd[d].find(x=>x.includes(tid));return m?Math.min(...m)+'-'+Math.max(...m):null};
+  const k=pk(day);if(!k)return null;let s=day,e=day;
+  while(s>0&&pk(s-1)===k)s--;while(e<sd.length-1&&pk(e+1)===k)e++;
+  return{n:day-s+1,len:e-s+1};
+}
+function serLabel(day,tid){const x=serInfo(day,tid);return x?(x.len>1?`${x.len}연전 ${x.n}차전`:'단일 경기'):''}
 function buildTeamOf(){TEAMOF={};S.teams.forEach(t=>[...t.active,...t.futures].forEach(id=>TEAMOF[id]=t.id))}
 function autoLineup(t,pl){
   const get=id=>pl[id];let pool=t.lineup.slice();
@@ -737,12 +806,16 @@ function finish(g){
   if(!g.walkoff)log(g,win<0?`경기 종료 — ${s0}:${s1} 무승부 (${g.inning}회)`:`경기 종료 — ${tName(g.T[win])} ${Math.max(s0,s1)}:${Math.min(s0,s1)} 승리`,'end');
 }
 /* AI 판단 */
+/* 계투 후보: 선발 요원(SP)은 어떤 경우에도 구원으로 나오지 않는다 */
+function relievers(g,fld,t){
+  return t.bullpen.filter(id=>!g.used[fld].includes(id)&&!t.rotation.includes(id)&&P(id).role!=='SP'&&P(id).fat<70);
+}
 function changePitcher(g,fld,id){const old=g.pit[fld];g.pit[fld]=id;g.used[fld].push(id);g.pc[id]=0;log(g,`투수 교체: ${P(old).name} → ${P(id).name}${P(id).role==='CL'?' (마무리)':''}`,'chg')}
 function aiPitch(g,fld){
   if(g.over)return;
   const pid=g.pit[fld],p=P(pid),pc=effPC(g,pid),lim=limitOf(p),runs=g.pr[pid]||0;
   const lead=g.score[fld]-g.score[1-fld],t=S.teams[g.T[fld]];
-  const avail=t.bullpen.filter(id=>!g.used[fld].includes(id)&&P(id).fat<70);
+  const avail=relievers(g,fld,t);
   if(!avail.length)return;
   const cl=t.bullpen.find(id=>P(id).role==='CL');
   let want=null;
@@ -1040,7 +1113,7 @@ function recStep(g){
     if(r.act==='visit')visit(g);
     else if(r.act==='pickoff'&&R()<.5)pickoff(g);
     else if(r.act==='ibb'){runPA(g,'ibb');resetPA(g)}
-    else if(r.act==='change'){const t=S.teams[S.my];const av=t.bullpen.filter(id=>!g.used[us].includes(id)&&P(id).fat<70).sort((a,b)=>(ovr(P(b))-P(b).fat*.3)-(ovr(P(a))-P(a).fat*.3));if(av.length)changePitcher(g,us,av[0]);applyRecSet(g,curRec(g));throwPitch(g,aiOffPitch(g),{...g.ui,pitchout:false})}
+    else if(r.act==='change'){const t=S.teams[S.my];const av=relievers(g,us,t).sort((a,b)=>(ovr(P(b))-P(b).fat*.3)-(ovr(P(a))-P(a).fat*.3));if(av.length)changePitcher(g,us,av[0]);applyRecSet(g,curRec(g));throwPitch(g,aiOffPitch(g),{...g.ui,pitchout:false})}
     else throwPitch(g,aiOffPitch(g),{...g.ui,pitchout:false});
   }
   afterStep(g,0);
@@ -1086,7 +1159,8 @@ const W_LAST=['할로웨이','펜틀랜드','브래넌','크로퍼드','콜드�
 const J_LAST=['니시무라','오카다','하야시','마츠오','키타무라','후지이','아라이','모리타','나카야마','타니구치','우에다','호리','미즈노','요시하라','시마다','쿠도','오쿠보','사쿠마'];
 const T_SYL=['린','천','쩡','류','쑤','라이','궈'],T_GIV=['즈하오','웨이쥔','관츠','위셴','카이룬','청펑','쥔이'];
 const AU_LAST=['맥그래스','오코너','해리스턴','윈덤','블랙우드','캠벨리'];
-function addNews(team,text,k){(S.news||(S.news=[])).push({d:S.gday+1,team,text,k});if(S.news.length>80)S.news.shift()}
+function addNews(team,text,k){(S.news||(S.news=[])).push({d:S.gday+1,team,text,k});if(S.news.length>80)S.news.shift();
+  if(team===S.my||(k==='trade'&&text.includes(S.teams[S.my].nick+' ')))cNews(text,k)}
 function usedNames(){return new Set(Object.values(S.players).map(p=>p.name))}
 function uniqName(gen){const u=usedNames();for(let i=0;i<60;i++){const n=gen();if(!u.has(n))return n}return gen()+rint(2,9)}
 function scoutify(p){
@@ -1236,13 +1310,15 @@ function frontDaily(){
 }
 
 function completeDay(userG){
-  const res=[];
+  const res=[];let myG=null;
   for(const [h,a] of S.sched[S.day]){
     let g=(userG&&userG.T[1]===h&&userG.T[0]===a)?userG:simGame(mkGame(h,a));
+    if(h===S.my||a===S.my)myG=g;
     res.push({h,a,hs:g.score[1],as:g.score[0],inn:g.inning,wp:g.wp,lp:g.lp,svp:g.svp});
   }
   S.last=res;S.day++;S.gday++;recover();S.cur=null;aiRosters();if(S.phase==='season')frontDaily();
-  if(S.day>=S.sched.length)startPost();
+  if(myG)commAfterGame(myG,`${S.day}일차`);
+  if(S.day>=S.sched.length){startPost();commSeasonEnd()}
 }
 const pct=t=>(t.w+t.l)?t.w/(t.w+t.l):0;
 function standings(){return S.teams.slice().sort((a,b)=>pct(b)-pct(a)||(b.rs-b.ra)-(a.rs-a.ra)||b.w-a.w)}
@@ -1257,11 +1333,14 @@ function setupRound(){const o=S.post,r=o.round;o.ser={hi:o.seeds[3-r],lo:r===0?o
 function postMatch(){const s=S.post.ser,f=ROUNDS[S.post.round].fmt;return f[s.gn%f.length]===0?[s.hi,s.lo]:[s.lo,s.hi]}
 function postResult(g){
   const o=S.post,s=o.ser,rd=ROUNDS[o.round];s.gn++;
+  const inv=s.hi===S.my||s.lo===S.my;
   s.games.push({h:g.T[1],a:g.T[0],hs:g.score[1],as:g.score[0],tie:g.win<0});
   if(g.win>=0){const wt=g.T[g.win];s.w[wt===s.hi?0:1]++}
   S.gday++;recover();S.cur=null;
+  if(inv)commAfterGame(g,`${rd.name} ${s.gn}차전`);
   if(s.w[0]>=rd.need[0]||s.w[1]>=rd.need[1]){
     const winner=s.w[0]>=rd.need[0]?s.hi:s.lo;
+    if(inv)commSeries(rd.name,winner===S.my,o.round===3&&winner===S.my);
     o.hist.push({name:rd.name,hi:s.hi,lo:s.lo,w:s.w.slice(),winner});o.lastWinner=winner;
     if(o.round===3){o.champ=winner;S.phase='done'}else{o.round++;setupRound()}
   }
@@ -1276,7 +1355,186 @@ function newSeason(){
     if(p.type==='B'){p.st=newBatSt();['con','pow','eye','spd'].forEach(k=>p[k]=clamp(p[k]+d(),20,95))}
     else{p.st=newPitSt();['stf','ctl','sta'].forEach(k=>p[k]=clamp(p[k]+d(),20,95))}
   });
-  S.sched=makeSchedule(S.len);refreshMarket();
+  S.sched=makeSchedule(S.len);S.schedV=2;refreshMarket();
+}
+
+/* ================= 팬 커뮤니티 (우리 팀 팬 게시판) ================= */
+const C_TAG={g:'경기',a:'분석',f:'잡담',n:'오피셜',v:'직관',p:'가을'};
+const C_GONIK=['직관요정','9회말투아웃','외야석붙박이','치맥은진리','응원봉수집가','야알못탈출중','불펜걱정러','주루사방지위원회','퇴근후야구','시즌권n년차','홈런볼사냥꾼','3루측명당','우천취소싫어','야구가뭐길래','내일은이긴다','선발야구신봉자','타순장인','중계화면속관중','혈압약복용중','야구보다늙음','엘레베이터팀팬','144경기다봄','직관승률1할','유니폼부자','응원가완창러'];
+/* 댓글: {P}=주인공 선수 {X}=그 선수 성 첫 글자 {G}=부진한 선수 {LINE}=성적 {T}=우리 팀 {O}=상대 {C}=감독 {RK}=순위 {SC}=스코어 */
+const C_CM={
+  none:[],
+  win:['ㅋㅋㅋㅋㅋ 개좋네','오늘 맥주 존나 달다','이기니까 세상이 아름답다','개추 박고 간다','이게 {T} 야구지','퇴근길 발걸음 가볍다','{O} 상대로 이기니까 더 꿀맛','오늘 경기력 미쳤네','내일도 이렇게만 해라 제발','이겼으니 됐다 과정은 묻지 마라','선발 잘 던지고 타자 잘 치고 이게 맞지','하이라이트 무한 반복 중','이 맛에 {T} 응원함','오랜만에 편하게 봤다','직관러들 부럽다 ㄹㅇ','야근 째고 본 보람 있다','{C} 감독 오늘은 인정','오늘 개꿀잼이었다','가자 가자 가자','이대로 우승까지 ㄱㄱ','오늘은 칭찬만 하자','팀 분위기 좋다 ㄹㅇ','이긴 날은 갤 글 다 읽게 됨 ㅋㅋ','이겼으니까 오늘은 착하게 산다','치킨 한 마리 더 시킴','기분 좋아서 잠 안 옴','역시 내 팀','오늘 같은 날만 있으면 탈모 안 옴','어제 욕한 거 취소한다','이기니까 다들 착해졌네 ㅋㅋ','승리의 함성 들리냐','개꿀 ㅋㅋㅋ','캬 오늘 술맛 난다','{P} 오늘 지렸다','{P} 연봉 올려줘라 구단아','{P} 폼 올라온 거 맞지?'],
+  loss:['하 ㅅㅂ','오늘 경기 없던 걸로 함','야구 끊는다','치킨이 목구멍으로 안 넘어감','이걸 지네 ㅋㅋㅋ 웃음밖에 안 나온다','중계 끄고 잔다 다들 굿밤','타선 단체로 출근 안 했냐','오늘 3시간 날렸다','개빡치네','아 진짜 혈압','내가 이 팀을 왜 응원하냐','그래도 내일 또 보겠지 ㅋㅋ','{O}한테 지는 건 못 참지','타자들 눈 어디 두고 옴?','오늘은 걍 상대가 잘했다','직관 갔는데 3시간 버림','{T} 팬 하는 게 벌이다','시발 내 저녁 돌려내','오늘 진짜 노답','2군에 쓸 만한 애 없냐','내일은 이기겠지... 이기겠지?','그래도 응원한다 ㅠ','멘탈 나감','에휴','개노답 경기','오늘 진 거 꿈에 나올 듯','이럴 거면 왜 봤냐 나','아 몰라 잘래','오늘 경기 본 사람 손 들어 (나만 고통받을 수 없음)','{C} 감독 작전 뭐냐 진짜','{G} 오늘 뭐함?','지는 것도 습관이다 진짜','하... 내 주말','이 팀은 사람을 늙게 만든다'],
+  hype:['와 ㅅㅂ ㅋㅋㅋㅋㅋㅋ','미친 소름 돋았다','소리 질러서 옆집에서 벽 침','이거 평생 기억할 듯','심장 아직도 뜀','레전드 경기 ㄹㅇ','클립 어디서 봄?','이게 야구지 ㅅㅂ','와 진짜 개지렸다','방금 동네에서 함성 들림 ㅋㅋ','눈물 남 ㅠㅠㅠ','중간에 끈 놈들 반성해라','오늘 잠 다 잤다','아 씨 울었다','미쳤다 미쳤어 진짜','방금 소리 지르다 개 놀램','이거 다큐로 만들어야 됨','와 이 맛에 야구 보지','오늘 경기 박제한다','{P} 미친놈 ㅋㅋㅋㅋ','{P} 오늘부터 내 최애','온몸에 소름 돋음','엄마가 무슨 일 났냐고 물어봄 ㅋㅋ','도파민 터진다'],
+  angry:['시발 진짜','이건 감독 책임이지','불펜 다 2군 보내라','작전 누가 짰냐','혈압 터진다','오늘 경기 보고 수명 3년 줄었다','{C} 나가','이걸 역전당하네 ㅋㅋㅋ','투수 교체 타이밍 개똥','내 3시간 누가 보상함','오늘은 진짜 화난다','팬 하기 존나 힘들다','뭐 하는 팀이냐 이게','개판이네 개판','욕 나오는 거 참는 중','아 진짜 할 말 없다','리모컨 던질 뻔','이건 프로가 아니다','오늘 진 거 다 기억할 거다','열받아서 잠 안 옴','이딴 경기를 돈 주고 봤네','{G} 오늘 뭐하냐 진짜'],
+  calm:['아직 시즌 길다','멘탈 잡자','과몰입 금지 ㅋㅋ','길게 보자','다음 시리즈 잘하면 됨','순위표 당분간 안 봄','다들 진정해라','한 경기 갖고 그러지 말자','이런 날도 있는 거지','그래도 응원합니다','어차피 내일 또 봄','슬럼프는 지나간다','선수들도 사람이다']};
+/* 댓글 + 대댓글(ㄴ) 묶음 */
+const C_PAIR={
+  any:[['믿었으면 개추 ㅋㅋ','이걸 믿네 ㄷㄷ'],['오늘 직관 간 사람?','1루 쪽 있었음 ㅋㅋ'],['순위 몇 위임 지금?','{RK}위'],['치킨 뭐 시킴?','반반 무많이'],['우리 올해 우승함?','김칫국 ㄴㄴ'],['오늘 해설 누구였냐','몰라 소리 끄고 봄'],['응원가 아직 귀에 맴돈다','ㄹㅇ 중독됨'],['갤 오늘 왜 이렇게 조용함','다들 경기 보느라 ㅋㅋ'],['몇 대 몇이었음?','{SC}'],['감독 오늘 잘했냐 못했냐','결과로 말한다 ㅇㅇ']],
+  win:[['내일도 이기면 연승이지?','설레발 치지 마라 ㅅㅂ'],['역시 {T}','ㄹㅇ 이 맛에 응원함'],['오늘 MVP 누구냐','{P} 아님?'],['우승 가즈아','또 시작이네 ㅋㅋ'],['어제 욕한 놈들 다 어디 감?','나 여깄음 ㅋㅋ 반성함'],['이겼는데 왜 불안하냐','{T} 팬 직업병']],
+  loss:[['야구 끊는다','ㅋㅋ 내일 6시 반에 보자'],['오늘 진 거 누구 탓임?','다 같이 못함'],['감독 나가','나가면 누가 옴?'],['이 팀 응원하는 이유가 뭐냐','정 때문이지 뭐'],['내일은 이기겠지?','어제도 그 소리 함'],['오늘 경기 본 사람?','안 봤으면 행복했을 듯']],
+  hype:[['방금 나만 소리 지름?','온 동네가 지름 ㅋㅋ'],['이거 몇 번 돌려봄?','30번째'],['중간에 끈 사람?','나... 지금 하이라이트 봄 ㅠ']],
+  angry:[['{C} 나가','이번엔 동의'],['불펜 누가 짠 거냐','감독'],['리모컨 부숨','ㅋㅋㅋ 몇 개째임']],
+  calm:[['아직 시즌 길다','몇 경기 남았는데?'],['멘탈 잡자','이미 나감']],
+  hero:[['{P} 오늘 개잘했다 ㅇㅈ?','{P}? {X}니친?'],['이새끼 오늘 개잘햇다 ㅇㅈ?','이새끼? {X}니친?'],['{P} 오늘 몇 타수 몇 안타임?','{LINE}'],['{P} 계약 몇 년 남았냐','평생 계약 해줘라'],['{P} 요즘 왜 이렇게 잘함?','폼 미쳤음 ㄹㅇ']],
+  goat:[['{G} 2군 보내라','그럼 누구 씀?'],['{G} 오늘 몇 타수 몇 안타?','{LINE}... 묻지 마라'],['{G} 언제 살아나냐','올스타 브레이크 지나면?'],['{G} 타순 좀 내려라','감독이 고집 있음']],
+  sp:[['{P} 오늘 몇 개 던졌냐','투구수 보니까 한계였음'],['{P} 에이스 맞지?','ㅇㅈ']]};
+const C_PRE=['ㄹㅇ ','솔직히 ','와 '],C_POST=[' ㅋㅋ',' ㅋㅋㅋ',' ㄹㅇ'];
+let CCTX={};
+function fillT(s,c){let ok=true;const t=s.replace(/\{(\w+)\}/g,(m,k)=>{if(c[k]==null||c[k]===''){ok=false;return''}return c[k]});return ok?t:null}
+function decor(t){const r=R();if(r<.14&&!/^(ㅋ|ㄹㅇ|와|아|하|시발|ㅅㅂ|미친|에휴|캬|개)/.test(t))return pick(C_PRE)+t;if(r<.3&&!/[ㅋㅠㄷ?!.]$/.test(t))return t+pick(C_POST);return t}
+function cComments(tone,heat,extra,ctx){
+  const c={...CCTX,...(ctx||{})},used=S._cu||(S._cu=new Set());
+  const n=clamp(heat+rint(1,3),2,6),out=[];
+  const base=[...(extra||[]),...(C_CM[tone]||[])].filter(t=>S.phase==='season'||!/시즌 길다|144경기|순위표|다음 시리즈|길게 보자/.test(t));
+  const pairs=[...(c.kind&&C_PAIR[c.kind]||[]),...(C_PAIR[tone]||[]),...C_PAIR.any];
+  let guard=0;
+  while(out.length<n&&guard++<80){
+    if(R()<(c.kind?.4:.25)){
+      const pr=pick(pairs),t=fillT(pr[0],c),r=fillT(pr[1],c);if(!t||!r||used.has(t))continue;
+      used.add(t);out.push({nick:cNick(),t,k:t,re:[{nick:cNick(),t:r}]});
+    }else{
+      if(!base.length)break;const raw=fillT(pick(base),c);if(!raw||used.has(raw))continue;
+      used.add(raw);out.push({nick:cNick(),t:decor(raw),k:raw});
+    }
+  }
+  return out;
+}
+function cPost(tag,title,body,tone,heat,extra,ctx){
+  const up=Math.max(0,Math.round((heat*24+rint(0,16))*(.6+R()*.8)));
+  const cm=cComments(tone,heat,extra,ctx);
+  return{id:'c'+(S.cseq=(S.cseq||0)+1),tag,title,body,nick:cNick(),up,cm,cmN:cm.length+cm.filter(x=>x.re).length+rint(0,heat*9),heat};
+}
+function cNick(){const r=R();if(r<.42)return`ㅇㅇ(${rint(1,223)}.${rint(10,255)})`;if(r<.86)return pick(C_GONIK);
+  return`${S.teams[S.my].nick}${pick(['사랑','최고','만세','평생팬','찐팬','10년팬'])}${R()<.4?rint(1,99):''}`}
+const bLine=b=>`${b.ab}타수 ${b.h}안타${b.hr?` ${b.hr}홈런`:''}${b.rbi?` ${b.rbi}타점`:''}`;
+function gameFacts(g){
+  const us=g.T[0]===S.my?0:1,op=1-us,ms=g.score[us],os=g.score[op];
+  const res=ms>os?'W':ms<os?'L':'T';
+  let a=0,h=0,maxDef=0,maxLead=0,ledLate=false;
+  const n=Math.max(g.line[0].length,g.line[1].length);
+  const chk=i=>{const d=us===0?a-h:h-a;maxDef=Math.max(maxDef,-d);maxLead=Math.max(maxLead,d);if(i>=7&&d>0)ledLate=true};
+  for(let i=0;i<n;i++){a+=g.line[0][i]||0;chk(i);h+=g.line[1][i]||0;chk(i)}
+  const t=S.teams[S.my],mine=new Set([...t.active,...t.futures]);
+  const bats=Object.keys(g.box).filter(id=>mine.has(id)).map(id=>({id,name:P(id).name,...g.box[id]}));
+  const heroes=bats.filter(b=>b.hr>=2||(b.hr>=1&&b.rbi>=3)||b.h>=3||b.rbi>=4).sort((x,y)=>(y.hr*4+y.h+y.rbi*1.5)-(x.hr*4+x.h+x.rbi*1.5));
+  const goats=bats.filter(b=>(b.ab>=4&&b.h===0)||b.so>=3).sort((x,y)=>y.so-x.so||y.ab-x.ab);
+  const used=g.used[us],sp=used[0],spO=g.po[sp]||0,spR=g.pr[sp]||0;
+  const bpR=used.slice(1).reduce((s,id)=>s+(g.pr[id]||0),0);
+  const cl=used.find(id=>P(id).role==='CL');
+  let walkName=null;
+  const wi=g.log.findIndex(e=>e.t.startsWith('끝내기!'));
+  if(wi>0){for(let i=wi-1;i>=0;i--){const e=g.log[i];if(['run','hr','hit'].includes(e.k)){walkName=e.t.split(' ')[0];break}}}
+  const ph=[];
+  g.log.forEach(e=>{const m=/^대타: (.+) → (.+)$/.exec(e.t);if(!m)return;const b=bats.find(x=>x.name===m[2]);if(b)ph.push(b)});
+  return{us,op,ms,os,res,maxDef,maxLead,ledLate,heroes,goats,sp,spO,spR,bpR,cl,
+    save:g.svp&&used.includes(g.svp),clLoss:g.lp&&used.includes(g.lp)&&P(g.lp).role==='CL',
+    walkoff:g.walkoff,walkName,extra:g.inning>9,inn:g.inning,ph,user:!!g.ui,used};
+}
+function genPosts(g){
+  const f=gameFacts(g),t=S.teams[S.my],T=t.nick,out=[];
+  const add=(pr,p)=>out.push({pr:pr+R()*1.5,p});
+  S._cu=new Set((S.comm||[]).slice(-24).flatMap(p=>p.cm.map(c=>c.k||c.t)));
+  const sc=`${f.ms}:${f.os}`,opp=S.teams[g.T[f.op]].nick,coach=S.coach||t.mgr;
+  const H=f.heroes[0],G=f.goats[0],sp=P(f.sp),spIP=ip(f.spO);
+  CCTX={T,O:opp,C:coach,RK:g.post?'':rankOf(S.my),SC:sc,P:H?H.name:'',G:G?G.name:''};
+  const hc=H&&{kind:'hero',P:H.name,X:H.name[0],LINE:bLine(H)},gc=G&&{kind:'goat',G:G.name,LINE:bLine(G)};
+  const stk=t.streak?+t.streak.slice(1):0,sw=t.streak[0]==='W';
+  const post=!!g.post;
+  // 메인 경기 글
+  if(f.res==='W'){
+    if(f.walkoff)add(10,cPost('g',pick(['끝내기!!!!!!!!!!!!!!!','와 끝내기 ㅋㅋㅋㅋㅋㅋㅋ','끝내기 실화냐','오늘 끝내기 본 사람 손']),`${f.walkName?f.walkName+' 사랑한다 진짜 ㅠㅠㅠ\n':''}${opp}전 ${sc} 끝내기승. 집에서 소리 지르다 혼남 ㅋㅋㅋ`,'hype',3,[f.walkName&&`${f.walkName} 오늘 밥 사줘라 구단아`,f.walkName&&`${f.walkName} 클러치 미쳤음`].filter(Boolean)));
+    if(f.maxDef>=4)add(9,cPost('g',pick([`${f.maxDef}점 차 뒤집었다 ㄷㄷㄷ`,`${f.maxDef}점 차 역전승 실화?`,'오늘 중간에 중계 끈 사람 손']),`${f.maxDef}점 지고 있을 때 채널 돌렸는데 ${sc}, 이겨 있네 ㅋㅋㅋ\n이 팀 진짜 모르겠다`,'hype',3,['나 끈 사람 ㅠㅠ','끝까지 본 사람만 승자','역시 야구는 9회부터']));
+    else if(f.maxDef>=2)add(6,cPost('g','역전승 ㅋㅋㅋ',`${f.maxDef}점 끌려가다가 결국 뒤집음. 최종 ${sc}. 오늘 타선 집중력 좋았다`,'win',2));
+    if(f.ms-f.os>=7)add(6,cPost('g',pick([`오늘 타선 폭발 ㅋㅋ ${f.ms}점`,`${f.ms}점 실화냐 ㅋㅋㅋㅋ`,'점수 그만 내 다음 경기 거 남겨둬']),`${opp} 상대로 ${sc}. 오늘은 그냥 다 맞음`,'win',2,['내일 점수 당겨쓴 거 아니지?','이런 날도 있어야지']));
+    if(f.os===0)add(7,cPost('g',`${opp} 상대로 무실점 ㄷㄷ`,`${sp.name} ${spIP}이닝 ${f.spR}실점${f.used.length>1?', 불펜도 깔끔하게 막음':', 혼자 다 던짐 ㄷㄷ'}. 오늘 마운드 완벽`,'win',2,[`${sp.name} 오늘 공 미쳤던데`,'투수진 오늘 칭찬해']));
+    if(f.extra)add(5,cPost('g',`연장 ${f.inn}회 혈투 끝에 이겼다`,`${sc}. 4시간 넘게 봤는데 이겨서 다행이다 진짜`,'hype',2,['내일 출근 어떡함','이겼으니 됐다']));
+    if(!out.length||R()<.6)add(4,cPost('g',pick([`${T} 승리!!`,'이겼다 ㅋㅋㅋ',`${opp}전 ${sc} 승`,'오늘 경기 개좋았다','ㅅㅂ 이기니까 좋네','승리 기념 개추 ㄱ','오늘은 이겼으니까 칭찬만 하자','이긴 날 갤 분위기 좋네']),`${sc} 승. ${H?`${H.name} 오늘 ${bLine(H)}, 잘 쳤고 `:''}${sp.name} ${spIP}이닝 ${f.spR}실점. 이대로만 가자`,'win',1));
+  }else if(f.res==='L'){
+    if(f.walkoff)add(9,cPost('g',pick(['와 끝내기 맞았네','끝내기 패... 잠이 안 온다','9회말에 이게 뭐냐']),`${sc}, 끝내기 패. 다 잡은 경기였는데`,'angry',3,['오늘 꿈에 나올 듯','불펜 좀 어떻게 해봐라']));
+    if(f.maxLead>=3||(f.ledLate&&!f.walkoff))add(8,cPost('g',pick([`${f.maxLead}점 차를 못 지키네`,'다 이긴 경기를 왜 지냐고','역전패 실화냐']),`${f.maxLead}점 앞서다가 결국 짐 (${sc}). 불펜 ${f.bpR}실점... 할 말이 없다`,'angry',3,['불펜 총력전 하더니 이게 뭐','중간 계투 교체 타이밍 너무 늦음']));
+    if(f.ms===0)add(6,cPost('g',pick(['오늘 타선 출근 안 함?','영봉패 ㅋㅋㅋ 웃음만 나온다','점수 1점이 그렇게 어렵냐']),`${opp} 투수 공략을 하나도 못 함. ${G?`${G.name} ${bLine(G)}... `:''}타선 전체가 조용`,'loss',2,['방망이 다 바꿔라','상대 투수가 잘 던진 걸로 하자']));
+    if(f.os-f.ms>=7)add(6,cPost('g',`${f.os}실점 실화?`,`${sc}. 오늘은 그냥 없던 경기로 치자`,'angry',2,['중간에 껐다','야수 등판 기다렸다 ㅋㅋ']));
+    if(f.extra)add(5,cPost('g',`연장 ${f.inn}회까지 가서 졌다`,`4시간 봤는데 ${sc} 패... 시간 돌려줘`,'loss',2));
+    if(!out.length||R()<.6)add(4,cPost('g',pick(['하 진짜..','오늘 경기 보고 혈압 오른 사람',`${opp}전 ${sc} 패`,'졌네','아 ㅅㅂ 졌다','오늘 경기 노답','이걸 지냐 진짜','오늘 경기 총평: 노잼']),`${sc} 패. ${sp.name} ${spIP}이닝 ${f.spR}실점${G?`, ${G.name} ${bLine(G)}`:''}. 내일은 이기자`,'loss',1));
+  }else{
+    add(5,cPost('g',pick(['무승부... 이도저도 아니네','비겼다','연장까지 가서 무승부 ㅋㅋ']),`${sc} 무승부. 투수만 엄청 쓰고 남은 게 없다`,'calm',1,['진 것보단 낫다','내일 불펜 남아 있냐']));
+  }
+  // 선수 글
+  if(H){const ex=[`${H.name} 갓`,`${H.name} 연봉 올려줘라`,`${H.name} 요즘 타격감 미쳤음`,'오늘 MVP 인정'];
+    if(H.hr>=2)add(7,cPost('f',pick([`${H.name} 오늘 ${H.hr}홈런 ㄷㄷㄷ`,`${H.name} 멀티홈런 미쳤네 ㅅㅂ`,`${H.hr}홈런 친 ${H.name} 찬양글`]),`${bLine(H)}. 오늘은 ${H.name} 날`,'hype',2,ex,hc));
+    else add(5,cPost('f',pick([`${H.name} 오늘 미쳤다`,`${H.name} 오늘 ${bLine(H)}`,'이새끼 오늘 개잘햇다 ㅇㅈ?',`${H.name} 오늘 개잘했다 ㅇㅈ?`,`${H.name} 폼 미쳤다 ㄹㅇ`]),`${H.name} ${bLine(H)}. ${f.res==='W'?'이겨서 더 좋다':'근데 팀이 져서 빛이 바램 ㅠ'}`,f.res==='W'?'win':'calm',1,ex,hc));}
+  if(G&&(f.res!=='W'||R()<.3))add(f.res==='L'?6:3,cPost('f',pick([`${G.name} 오늘 왜 이럼?`,`${G.name} 슬럼프인 듯`,`${G.name} ${G.so>=3?G.so+'삼진':'무안타'}...`,`${G.name} 진짜 언제 살아나냐`,`${G.name} 오늘 개못함`]),`${bLine(G)}${G.so?`, 삼진 ${G.so}개`:''}. ${pick(['컨디션 안 좋으면 좀 쉬게 해주자','타순이라도 좀 내리자','방망이가 아예 안 맞는다','보는 내가 다 답답함'])}`,f.res==='L'?'loss':'calm',1,[`${G.name} 그래도 믿는다`,'하루 쉬게 해줘',`${G.name} 보면 한숨만 나옴`],gc));
+  if(f.spO>=18&&f.spR<=2)add(5,cPost('a',`${sp.name} ${spIP}이닝 ${f.spR}실점 ㅇㅈ?`,`선발이 이닝 먹어주니까 불펜도 살고 경기 편하게 봄. ${sp.name} 오늘 완벽`,'win',1,[`${sp.name} 에이스 맞다`,'QS+ 개좋음',`${sp.name} 오늘 공 개좋던데`],{kind:'sp',P:sp.name}));
+  else if(f.spR>=5&&f.spO<=12)add(5,cPost('f',`${sp.name} 오늘 ${spIP}이닝 ${f.spR}실점...`,`초반부터 너무 맞았다. 로테이션 한 번 거르는 것도 생각해 봐야 할 듯`,'loss',2,['2군 가서 정비하고 와라','오늘만 이런 거겠지','볼배합 문제 아님?',`${sp.name} 오늘 공 개털림`,'1회부터 불안하더라'],{kind:'sp',P:sp.name}));
+  if(f.save&&f.cl)add(3,cPost('f',`${P(f.cl).name} 오늘도 세이브`,'9회 깔끔하게 정리. 마무리는 걱정 없다','win',1,['수호신 ㅇㅈ']));
+  if(f.clLoss)add(6,cPost('f',`${P(f.cl).name} 블론...`,'마무리가 무너지니까 할 말이 없다. 요즘 구위 떨어진 거 아님?','angry',2,['마무리 교체 가자','한 번은 봐준다']));
+  // 감독(나) 관련
+  if(f.user&&f.ph.length){const b=f.ph[0];
+    if(b.h>0)add(6,cPost('a',`대타 ${b.name} 적중 ㅋㅋ 감독 촉 뭐냐`,`${b.name} ${bLine(b)}. ${coach} 감독 오늘 용병술 인정`,'win',2,[`${coach} 감독 명장설`,'대타 타이밍 기가 막혔음']));
+    else add(4,cPost('a',`대타 왜 ${b.name}임?`,`${b.name} ${bLine(b)}. 벤치에 더 나은 카드 없었나`,'angry',1,['결과론이긴 한데..','감독도 생각이 있었겠지']));}
+  if(!post&&stk>=4)add(sw?7:7,cPost(sw?'f':'a',sw?pick([`${stk}연승 ㅋㅋㅋ 이 팀 뭐냐`,`${stk}연승 실화냐`]):pick([`${stk}연패... 탈출은 언제`,`${coach} 감독 경질 각?`,`${stk}연패 실화냐`]),
+    sw?`요즘 ${T} 분위기 최고. ${coach} 감독 명장 인정합니다`:`분위기 완전 가라앉았다. 라인업이든 로테이션이든 뭐라도 바꿔야 할 듯`,sw?'win':'angry',sw?2:3,sw?['가자 1위','이 기세 쭉'] :['연패 끊는 게 먼저','감독 나가 (아직 이르다)','선수들도 힘들겠지']));
+  if(R()<.25)add(2,cPost('v',pick(['오늘 직관 후기','직관 다녀왔다','오늘 직관 갔다 온 사람']),f.res==='W'?pick(['직관 승리 요정 접수합니다 ㅋㅋ 응원가 다 따라 부름','오늘 외야석 분위기 미쳤음. 목 다 쉼','직관 가서 이기니까 집 가는 지하철도 행복함','치맥하면서 이기는 거 보니까 천국이 따로 없다']):f.res==='L'?pick(['직관 패배... 내 직관 승률 또 떨어졌다','3시간 앉아 있다가 지는 거 보고 옴. 엉덩이만 아프다','직관만 가면 지네 나 이제 안 감 (다음 주에 또 감)']):'무승부 직관은 처음이네',f.res==='W'?'win':'loss',1,['부럽다','다음엔 같이 가자','직관 승률 몇 할임?']));
+  out.sort((x,y)=>y.pr-x.pr);
+  const n=clamp(2+Math.round(out.filter(x=>x.pr>=6).length*.8)+rint(0,1),2,6);
+  return out.slice(0,n).map(x=>x.p);
+}
+function cPush(list,lab){
+  if(!list||!list.length)return;S.comm=S.comm||[];
+  list.forEach(p=>{if(!S.comm.some(q=>q.id===p.id)){p.d=S.gday;p.lab=lab;S.comm.push(p)}});
+  S.cLast=list.map(p=>p.id);
+  if(S.comm.length>160)S.comm.splice(0,S.comm.length-160);
+}
+function commAfterGame(g,lab){
+  cPush(g.comm||(g.comm=genPosts(g)),lab);
+  if(g.post)return;
+  const rk=rankOf(S.my),prev=S.cRank||0,t=S.teams[S.my],extra=[];
+  if(S.day>=Math.max(6,S.sched.length*.1)&&prev){
+    if(rk===1&&prev!==1)extra.push(cPost('f',pick(['1위 ㅋㅋㅋ 이게 맞냐','순위표 캡처해둠 ㅋㅋ 1위']),`${t.nick} ${recStr(t)}로 1위. 오늘 순위표 보고 잔다`,'hype',3,['내려오지 마라','캡처 완료']));
+    else if(prev>5&&rk<=5)extra.push(cPost('f','5강 진입!!',`드디어 ${rk}위. 이제 안 내려간다`,'win',2,['이대로 가을야구 가자']));
+    else if(prev<=5&&rk>5)extra.push(cPost('a','5강 밖으로 밀렸다..',`${rk}위로 떨어짐. 남은 경기 반등 가능하냐`,'calm',2,['아직 기회 있다','남은 일정 보면 할 만함']));
+  }
+  S.cRank=rk;
+  if(extra.length){cPush(extra,lab);S.cLast=[...(g.comm||[]).map(p=>p.id),...extra.map(p=>p.id)]}
+}
+function commSeasonEnd(){
+  const t=S.teams[S.my],rk=rankOf(S.my),in5=S.post&&S.post.seeds.includes(S.my);
+  cPush([in5?cPost('p',`가을야구 확정!! ${rk}위`,`${recStr(t)}, 정규시즌 ${rk}위로 가을야구 간다. ${rk===1?'한국시리즈 직행!! ':''}올해는 뭔가 될 것 같다`,'hype',3,['가을 티켓팅 전쟁 시작','올해는 우승 가자'])
+    :cPost('p','올해 가을야구 실패...',`${recStr(t)}, ${rk}위로 시즌 끝. 내년엔 진짜 달라져야 한다`,'none',2,['내년에 보자','고생했다 다들','스토브리그가 중요하다'])],'정규시즌 종료');
+}
+function commSeries(rdName,won,champ){
+  const t=S.teams[S.my];
+  cPush([champ?cPost('p','우승이다!!!!!!!!!!!!!!!!!',`${S.season} 한국시리즈 우승. ${S.coach||t.mgr} 감독, 선수들 모두 고생했다 진짜 ㅠㅠㅠ`,'hype',3,['평생 기억할 시즌','우승 굿즈 다 산다','눈물 난다 ㅠㅠ'])
+    :won?cPost('p',`${rdName} 통과!!`,`다음 시리즈도 가자. 이 분위기 그대로`,'hype',3,['가즈아','올라가자 끝까지'])
+    :cPost('p',`${rdName}에서 탈락... 가을 끝`,`${t.nick} 올해 고생했다. 내년엔 더 높이 가자`,'none',2,['고생 많았다','그래도 가을야구 한 게 어디냐','내년에 보자'])],rdName);
+}
+function cNews(text,k){
+  const bodies={in:['스카우트 평가 보니까 기대됨','외인은 늘 복권이지 뭐','제발 잘해라...'],out:['고생했다... 잘 가라','아쉽지만 어쩔 수 없지'],trade:['이 트레이드 어떻게 봄?','손익 따지면 우리가 이득인 듯','결과는 시즌 끝나봐야 안다']};
+  cPush([cPost('n',`[오피셜] ${text}`,pick(bodies[k]||bodies.trade),'calm',k==='trade'?2:1,['어떻게 될지 지켜보자','단장 일 좀 하네','평가는 나중에'])],`${S.day+1}일차`);
+}
+function postHTML(p,open){
+  return`<details class="cpost ${p.up>=50?'best':''}" ${open?'open':''}><summary><span class="ctag t-${p.tag}">${C_TAG[p.tag]}</span><span class="ctit">${esc(p.title)}${p.cmN?` <span class="ccn">[${p.cmN}]</span>`:''}</span><span class="cmeta"><span>${esc(p.nick)}</span><span>${esc(p.lab||'')}</span><span class="cup">추천 ${p.up}</span></span></summary>
+    <div class="cbody">${esc(p.body)}</div>${p.cm.length?`<ul class="ccm">${p.cm.map(c=>`<li><b>${esc(c.nick)}</b><span>${esc(c.t)}</span></li>${(c.re||[]).map(r=>`<li class="re"><b>ㄴ ${esc(r.nick)}</b><span>${esc(r.t)}</span></li>`).join('')}`).join('')}</ul>`:''}</details>`;
+}
+function commBox(list,title,more){
+  if(!list||!list.length)return'';
+  return`<section class="cbox"><div class="secrow"><span class="eyebrow">${title}</span>${more?`<button class="linkbtn" data-act="tab" data-arg="comm">팬 게시판 전체 보기 →</button>`:''}</div>${list.map(p=>postHTML(p,false)).join('')}</section>`;
+}
+function commStrip(){
+  if(!S.cLast||S.tab==='comm')return'';
+  const list=(S.comm||[]).filter(p=>S.cLast.includes(p.id)).sort((a,b)=>b.up-a.up).slice(0,2);
+  return commBox(list,`${S.teams[S.my].nick} 팬 반응`,true);
+}
+function tabComm(){
+  const all=(S.comm||[]).slice().reverse(),f=S.cf||'all';
+  const list=f==='best'?all.filter(p=>p.up>=50):f==='g'?all.filter(p=>p.tag==='g'||p.tag==='p'):all;
+  return`<div class="stack">
+    <div class="secrow"><h2 class="sec">${S.teams[S.my].full} 팬 게시판</h2><span class="muted" style="font-size:13px">경기가 끝날 때마다 팬들의 글이 올라옵니다 · 제목을 누르면 본문과 댓글</span></div>
+    <div class="seg">${[['all','전체'],['best','개념글'],['g','경기']].map(([k,l])=>`<button class="btn sm" data-act="cf" data-arg="${k}" aria-pressed="${f===k}">${l}</button>`).join('')}</div>
+    <div class="cboard">${list.slice(0,80).map(p=>postHTML(p,false)).join('')||'<p class="muted" style="margin:0;padding:14px">아직 글이 없습니다. 경기를 치르면 팬들이 글을 올립니다.</p>'}</div>
+  </div>`;
 }
 
 /* ================= 저장 ================= */
@@ -1417,7 +1675,7 @@ function bindCarousel(keep){
     goCard(order[best],true)});
 }
 const PREP=[['lineup','라인업'],['entry','엔트리'],['staff','투수진']];
-const SIDE=[['stand','순위'],['stats','기록'],['front','구단 운영']];
+const SIDE=[['comm','커뮤니티'],['stand','순위'],['stats','기록'],['front','구단 운영']];
 function gameDate(d){const dt=new Date(2026,2,28);dt.setDate(dt.getDate()+d+Math.floor(d/6));return`${dt.getMonth()+1}월 ${dt.getDate()}일(${'일월화수목금토'[dt.getDay()]})`}
 function introHTML(){
   const me=S.teams[S.my],[h,a]=myGameToday(),home=h===S.my,opp=S.teams[home?a:h],r=me.r25;
@@ -1449,7 +1707,7 @@ function dayBanner(){
   const nOff=(S.offers||[]).length;
   return`<section class="dbanner">
     <div class="db-l"><span class="eyebrow">${S.day===0?'개막전':`${S.day+1}일차`} · ${gameDate(S.day)}</span>
-      <div class="db-vs"><span class="dot" style="background:${opp.color}"></span><b>vs ${opp.full}</b><span class="badge">${home?'홈':'원정'}</span></div>
+      <div class="db-vs"><span class="dot" style="background:${opp.color}"></span><b>vs ${opp.full}</b><span class="badge">${home?'홈':'원정'}</span><span class="badge">${serLabel(S.day,S.my)}</span></div>
       <div class="sp">우리 ${spLine(S.my).replace('<div class="sp">선발 예정 ','').replace(/<\/div>$/,'')}</div>
       <div class="sp">상대 ${spLine(opp.id).replace('<div class="sp">선발 예정 ','').replace(/<\/div>$/,'')}</div></div>
     <div class="db-r">${lastLine}${nOff?`<button class="linkbtn" data-act="tab" data-arg="front">트레이드 제안 ${nOff}건 도착</button>`:''}</div>
@@ -1466,12 +1724,13 @@ function confirmBar(){
 function hubHTML(){
   const all=[...PREP,...SIDE].map(x=>x[0]);if(!all.includes(S.tab))S.tab='lineup';
   const me=S.teams[S.my],rk=rankOf(S.my),side=SIDE.some(([k])=>k===S.tab);
-  const body={entry:tabEntry,front:tabFront,lineup:tabLineup,staff:tabStaff,stand:()=>`<div class="stack"><section class="stack" style="gap:10px"><h2 class="sec">지난 경기 결과</h2>${resultsHTML(S.last)}</section>${tabStand()}<section class="stack" style="gap:10px"><h2 class="sec">리그 소식</h2>${newsHTML(10)}</section></div>`,stats:tabStats}[S.tab];
+  const body={entry:tabEntry,front:tabFront,lineup:tabLineup,staff:tabStaff,stand:()=>`<div class="stack"><section class="stack" style="gap:10px"><h2 class="sec">지난 경기 결과</h2>${resultsHTML(S.last)}</section>${tabStand()}<section class="stack" style="gap:10px"><h2 class="sec">리그 소식</h2>${newsHTML(10)}</section></div>`,stats:tabStats,comm:tabComm}[S.tab];
   return`<header class="top"><div class="mine"><span class="brand">더그아웃</span>${teamChip(S.my)}<span class="muted" style="font-size:13px">${esc(S.coach||me.mgr)} 감독</span>
       <span class="recd num">${recStr(me)} · <span class="lamp">${rk}위</span></span></div>
     <div class="hdr-r">${SIDE.map(([k,l])=>`<button class="btn sm ${S.tab===k?'on':''}" data-act="tab" data-arg="${k}">${l}</button>`).join('')}<button class="btn sm ghost" data-act="askNew">새 게임</button></div></header>
     <div class="hubin">
     ${dayBanner()}
+    ${commStrip()}
     ${side?`<div><button class="linkbtn" data-act="tab" data-arg="lineup">← 경기 준비로 돌아가기</button></div>`:`<nav class="tabs" role="tablist">${PREP.map(([k,l],i)=>`<button role="tab" aria-selected="${S.tab===k}" data-act="tab" data-arg="${k}"><span class="num">${i+1}</span> ${l}</button>`).join('')}</nav>`}
     ${body()}
     </div>
@@ -1498,7 +1757,7 @@ function tabToday(){
   return`<div class="stack">
     ${nOff?`<button class="cont" style="text-align:left;cursor:pointer;color:inherit;font:inherit" data-act="tab" data-arg="front"><span><b class="lamp">트레이드 제안 ${nOff}건</b> <span class="muted">· 구단 운영 탭에서 확인하세요</span></span><span class="btn sm">보기</span></button>`:''}
     <section class="panel stack" style="gap:16px">
-      <div class="match">${side(a,0)}<div class="vs">VS<small>${S.day+1}일차 · ${home?'홈':'원정'}</small></div>${side(h,1)}</div>
+      <div class="match">${side(a,0)}<div class="vs">VS<small>${S.day+1}일차 · ${home?'홈':'원정'} · ${serLabel(S.day,S.my)}</small></div>${side(h,1)}</div>
       <div class="btnrow"><button class="btn primary" data-act="play">경기 지휘하기<small>타석마다 작전 지시</small></button>
         <button class="btn" data-act="quick">빠른 진행<small>결과만 보기</small></button>
         <button class="btn" data-act="simN" data-arg="7" ${left<2?'disabled':''}>7일 진행</button>
@@ -1690,14 +1949,14 @@ function tabStaff(){
     <td class="${rc(p.stf)}">${p.stf}</td><td class="${rc(p.ctl)}">${p.ctl}</td><td class="${rc(p.sta)}">${p.sta}</td><td><b>${ovr(p)}</b></td><td class="l">${fat(p.fat)}</td>
     <td>${era(s)}</td><td>${s.w}</td><td>${s.l}</td><td>${ip(s.outs)}</td><td>${s.so}</td>
     <td class="l"><span class="ctl"><button class="btn sm" aria-label="위로" data-act="rup" data-arg="${i}" ${i===0?'disabled':''}>↑</button><button class="btn sm" aria-label="아래로" data-act="rdn" data-arg="${i}" ${i===4?'disabled':''}>↓</button></span></td></tr>`}).join('');
-  const bp=t.bullpen.slice().sort((a,b)=>(P(a).role==='CL'?-1:0)-(P(b).role==='CL'?-1:0)||ovr(P(b))-ovr(P(a))).map(id=>{const p=P(id),s=p.st;return`<tr><td class="l">${pName(p)}</td>
+  const bp=t.bullpen.slice().sort((a,b)=>(P(a).role==='CL'?-1:0)-(P(b).role==='CL'?-1:0)||((P(a).role==='SP')-(P(b).role==='SP'))||ovr(P(b))-ovr(P(a))).map(id=>{const p=P(id),s=p.st;return`<tr><td class="l">${pName(p)}${p.role==='SP'?' <span class="badge">대기 선발</span>':''}</td>
     <td class="${rc(p.stf)}">${p.stf}</td><td class="${rc(p.ctl)}">${p.ctl}</td><td><b>${ovr(p)}</b></td><td class="l">${fat(p.fat)}</td>
     <td>${era(s)}</td><td>${s.g}</td><td>${s.sv}</td><td>${ip(s.outs)}</td><td>${s.so}</td>
     <td class="l"><span class="ctl">${p.role==='CL'?'':`<button class="btn sm" data-act="setCL" data-arg="${id}">마무리 지정</button>`}<button class="btn sm" data-act="toRot" data-arg="${id}">선발 전환</button></span></td></tr>`}).join('');
   return`<div class="stack">
     <div class="secrow"><h2 class="sec">선발 로테이션</h2><span class="muted" style="font-size:13px">피로도 35 이하인 투수가 순서대로 등판합니다</span></div>
     <div class="tbl-wrap"><table class="t"><thead><tr><th class="l">순번</th><th class="l">선수</th><th>구위</th><th>제구</th><th>체력</th><th>OVR</th><th class="l">피로도</th><th>평균자책</th><th>승</th><th>패</th><th>이닝</th><th>삼진</th><th class="l"></th></tr></thead><tbody>${sp}</tbody></table></div>
-    <div class="secrow"><h2 class="sec">불펜</h2><span class="muted" style="font-size:13px">연투하면 피로가 쌓이고 구위가 떨어집니다</span></div>
+    <div class="secrow"><h2 class="sec">불펜</h2><span class="muted" style="font-size:13px">연투하면 피로가 쌓이고 구위가 떨어집니다 · 대기 선발은 구원으로 나오지 않고, 선발 전환으로 로테이션에 넣을 수 있습니다</span></div>
     <div class="tbl-wrap"><table class="t"><thead><tr><th class="l">선수</th><th>구위</th><th>제구</th><th>OVR</th><th class="l">피로도</th><th>평균자책</th><th>경기</th><th>세이브</th><th>이닝</th><th>삼진</th><th class="l"></th></tr></thead><tbody>${bp}</tbody></table></div>
   </div>`;
 }
@@ -1792,7 +2051,7 @@ function actionHTML(g){
     const res=w<0?'무승부':mine?'승리':'패배';
     const dec=[g.wp&&`승 ${esc(P(g.wp).name)}`,g.svp&&`세 ${esc(P(g.svp).name)}`,g.lp&&`패 ${esc(P(g.lp).name)}`].filter(Boolean).join(' · ');
     return`<div class="act"><span class="eyebrow">경기 종료</span><div class="final ${mine?'lamp':w<0?'':'hot'}">${res} <span class="num">${g.score[us]}:${g.score[1-us]}</span></div>
-      <p class="hint">${dec}</p><div class="btnrow"><button class="btn primary" data-act="applyGame">${g.post?'시리즈로 돌아가기':'결과 반영하고 다음 날로'}</button></div></div>`;
+      <p class="hint">${dec}</p><div class="btnrow"><button class="btn primary" data-act="applyGame">${g.post?'시리즈로 돌아가기':'결과 반영하고 다음 날로'}</button></div></div>${commBox((g.comm||(g.comm=genPosts(g))).slice().sort((a,b)=>b.up-a.up).slice(0,3),'경기 직후 팬 반응',false)}`;
   }
   const batting=g.half===us,[r1,r2,r3]=g.bases,c=g.cnt;
   const bid=g.lu[g.half][g.bo[g.half]],b=P(bid),pid=g.pit[1-g.half],p=P(pid),rep=getRep(p);
@@ -1819,7 +2078,7 @@ function actionHTML(g){
   }
   const lim=limitOf(p),pc=effPC(g,pid),tr=getTr(b);
   const fld=1-g.half,visits=2-g.visits[fld],pko=2-(g.pko||0);
-  const avail=S.teams[S.my].bullpen.filter(id=>!g.used[us].includes(id));
+  const avail=S.teams[S.my].bullpen.filter(id=>!g.used[us].includes(id)&&P(id).role!=='SP');
   const scout=[tr.weak==='FF'?'직구에 약함':tr.weak==='BR'?'변화구에 약함':'약점 없음',tr.hot==='high'?'높은 공에 강함':tr.hot==='low'?'낮은 공에 강함':''].filter(Boolean).join(' · ');
   const ops=[['pickoff',`견제 (${pko})`,'주자 묶기, 가끔 견제사',!((r1&&!r2)||(r2&&!r3))||pko<=0],
     ['pitchout','피치아웃','도루·스퀴즈 간파용, 볼 하나',!g.bases.some(Boolean)],
@@ -1867,7 +2126,7 @@ function modalPH(){
 }
 function modalRP(){
   const g=S.cur,us=g.T[0]===S.my?0:1,t=S.teams[S.my];
-  const list=t.bullpen.filter(id=>!g.used[us].includes(id)).sort((a,b)=>ovr(P(b))-ovr(P(a)));
+  const list=t.bullpen.filter(id=>!g.used[us].includes(id)&&P(id).role!=='SP').sort((a,b)=>ovr(P(b))-ovr(P(a)));
   MODAL=`<h3>투수 교체</h3><p class="note">피로도가 높은 투수는 한계 투구수가 줄어듭니다. 내려간 투수는 다시 올라올 수 없습니다.</p>
   <div class="pick">${list.map(id=>{const p=P(id);return`<button data-act="doRP" data-arg="${id}"><b>${pName(p)}</b><span class="num">OVR ${ovr(p)}</span>
     <div class="mini">구위 <b class="${rc(p.stf)}">${p.stf}</b> 제구 <b class="${rc(p.ctl)}">${p.ctl}</b> 피로도 <b class="${p.fat>=60?'hot':''}">${Math.round(p.fat)}</b> · 예상 한계 ${Math.round(limitOf(p))}구 · 평균자책 ${era(p.st)}</div></button>`}).join('')}</div>
@@ -1935,8 +2194,8 @@ const ACT={
   tnav:a=>{const order=carCards().map(c=>+c.dataset.tid);const i=order.indexOf(TS.sel);goCard(order[clamp(i+(+a),0,order.length-1)],true);return'skip'},
   setLen:a=>{TS.len=+a},
   reroll:()=>{TS.league=newLeague(TS.len)},
-  start:()=>{const lg=TS.league;lg.len=TS.len;lg.sched=makeSchedule(TS.len);lg.my=TS.sel;S=lg;S.coach=TS.name;S.teams.forEach(t=>t.mgrOrig=t.mgr);S.teams[S.my].mgr=TS.name;S.teams.forEach(t=>normRoster(t));buildTeamOf();refreshMarket();S.screen='intro';S.tab='lineup';save()},
-  cont:()=>{S=loadSave();if(S){buildTeamOf();S.screen=S.cur?'game':'hub';LASTLOG=S.cur?S.cur.log.length:0}},
+  start:()=>{const lg=TS.league;lg.len=TS.len;lg.sched=makeSchedule(TS.len);lg.schedV=2;lg.my=TS.sel;S=lg;S.coach=TS.name;S.teams.forEach(t=>t.mgrOrig=t.mgr);S.teams[S.my].mgr=TS.name;S.teams.forEach(t=>normRoster(t));buildTeamOf();refreshMarket();S.screen='intro';S.tab='lineup';save()},
+  cont:()=>{S=loadSave();if(S){buildTeamOf();migrateSched();S.teams.forEach(t=>normRoster(t));S.screen=S.cur?'game':'hub';LASTLOG=S.cur?S.cur.log.length:0}},
   askNew:()=>{MODAL=`<h3>새 게임을 시작할까요?</h3><p class="note">지금 진행 중인 ${S.season} 시즌 기록이 지워집니다.</p><div class="btnrow"><button class="btn primary" data-act="confirmNew">새 게임 시작</button><button class="btn ghost" data-act="closeModal">계속하기</button></div>`},
   confirmNew:()=>{MODAL='';clearSave();S=null;TS.named=false;TS.league=newLeague(TS.len)},
   tab:a=>{S.tab=a},
@@ -1949,7 +2208,7 @@ const ACT={
   toggleRec:()=>{S.autoRec=!S.autoRec;if(S.autoRec&&S.cur&&!S.cur.over)applyRecSet(S.cur,curRec(S.cur))},
   doPR:a=>{const [i,id]=a.split('|');const g=S.cur,us=g.half,old=g.bases[+i],li=g.lu[us].indexOf(old);if(li<0)return;g.lu[us][li]=id;g.bases[+i]=id;g.bench[us]=g.bench[us].filter(x=>x!==id);log(g,`대주자: ${P(old).name} → ${P(id).name}`,'chg');MODAL=''},
   doPH:id=>{const g=S.cur,us=g.half,i=g.bo[us],old=g.lu[us][i];g.lu[us][i]=id;g.bench[us]=g.bench[us].filter(x=>x!==id);log(g,`대타: ${P(old).name} → ${P(id).name}`,'chg');MODAL=''},
-  doRP:id=>{const g=S.cur,us=g.T[0]===S.my?0:1;changePitcher(g,us,id);MODAL=''},
+  doRP:id=>{const g=S.cur,us=g.T[0]===S.my?0:1;if(P(id).role==='SP')return;changePitcher(g,us,id);MODAL=''},
   applyGame:()=>{const g=S.cur;if(!g||!g.over)return;if(g.post)postResult(g);else completeDay(g);S.cur=null;S.screen='hub';if(!['stand','stats','front'].includes(S.tab))S.tab='lineup'},
   lup:i=>{i=+i;const l=S.teams[S.my].lineup;[l[i-1],l[i]]=[l[i],l[i-1]]},
   ldn:i=>{i=+i;const l=S.teams[S.my].lineup;[l[i+1],l[i]]=[l[i],l[i+1]]},
@@ -1965,6 +2224,7 @@ const ACT={
   postAll:()=>{let k=0;while(S.phase==='post'&&k++<60){const s=S.post.ser;if(s.hi===S.my||s.lo===S.my){/* 내 팀 경기도 자동 진행 */}postSimOne()}},
   newSeason:()=>newSeason(),
   ftab:a=>{S.ftab=a},
+  cf:a=>{S.cf=a},
   down:id=>{const t=S.teams[S.my];if(downBlock(t,id))return;t.active=t.active.filter(x=>x!==id);t.futures.push(id);t.down[id]=S.gday+RECALL_DAYS;normRoster(t);S.tx.push({d:S.gday+1,n:P(id).name,k:'말소'})},
   up:id=>{const t=S.teams[S.my];if(upBlock(t,id))return;t.futures=t.futures.filter(x=>x!==id);t.active.push(id);delete t.down[id];normRoster(t);S.tx.push({d:S.gday+1,n:P(id).name,k:'등록'})},
   toRot:id=>modalRot(id),
@@ -2014,5 +2274,4 @@ if(typeof document!=='undefined'){
 }
 </script>
 
-</body>
 </html>
