@@ -353,6 +353,11 @@ table.t tr.next td{background:rgba(139,219,166,.08)}
   .ctrlcol .decide .btn small{font-size:10.5px}
 }
 .tfilt{display:grid;gap:6px}.tfilt .tq{font:inherit;font-size:14px;padding:8px 10px;border-radius:8px;border:1px solid var(--line);background:var(--deep);color:var(--chalk);width:100%}.tfilt .seg{gap:4px}.tfilt .seg .btn{padding:4px 8px;font-size:12px}
+.dd{font:inherit;font-size:13px;font-weight:600;color:var(--chalk);background:var(--panel-2);border:1px solid var(--line);border-radius:8px;padding:5px 24px 5px 8px;appearance:none;-webkit-appearance:none;cursor:pointer;background-image:linear-gradient(45deg,transparent 50%,var(--muted) 50%),linear-gradient(135deg,var(--muted) 50%,transparent 50%);background-position:calc(100% - 12px) 55%,calc(100% - 8px) 55%;background-size:4px 4px;background-repeat:no-repeat}
+.dd:hover{border-color:var(--lamp)}.dd.ord{color:var(--lamp)}
+select.dd[data-chg=benchTo]{width:84px}
+@media (max-width:720px){.dd{font-size:12px;padding:4px 16px 4px 5px;background-position:calc(100% - 8px) 55%,calc(100% - 4px) 55%}select.dd.ord{width:46px}select.dd.pos{width:44px}select.dd[data-chg=benchTo]{width:50px}select.dd[data-chg=rotOrder]{width:64px}}
+.drop{color:var(--hot);font-family:var(--f-num);font-weight:700;margin-left:2px}.tire{font-size:11.5px;color:var(--hot)}
 /* ===== 팬 게시판 ===== */
 .cbox{display:grid;gap:6px;padding:12px 14px;border-radius:16px;background:var(--panel);border:1px solid var(--line)}
 .cboard{display:grid;border:1px solid var(--line);border-radius:16px;background:var(--panel);overflow:hidden}
@@ -749,7 +754,12 @@ function autoLineup(t,pl){
 }
 
 /* ================= 경기 엔진 ================= */
-function limitOf(p){const base=p.role==='SP'?55+p.sta*.55:10+p.sta*.45;return base*(1-p.fat/130)}
+function limitOf(p){const base=p.role==='SP'?55+p.sta*.55:10+p.sta*.45;return base*(1-p.fat/240)}
+/* 지침에 따른 하락: 한계의 80%부터 서서히, 한계를 넘으면 조금 더 가파르게. 최대 구위 -12, 제구 -9 */
+function tirePen(g,id){const p=P(id),pc=effPC(g,id),lim=limitOf(p),r=pc/Math.max(1,lim);
+  if(r<.8)return{s:0,c:0,v:0};
+  let s_=r<=1?(r-.8)/.2*3:3+(pc-lim)*.45;s_=Math.min(12,s_);
+  const c_=Math.min(9,s_*.75);return{s:Math.round(s_*10)/10,c:Math.round(c_*10)/10,v:Math.min(5,s_*.4)}}
 function ST(g,id){const p=P(id);if(!p[g.sk])p[g.sk]=p.type==='B'?newBatSt():newPitSt();return p[g.sk]}
 function log(g,t,k){g.log.push({t,k,n:g.log.length})}
 function tName(i){return S.teams[i].nick}
@@ -803,8 +813,8 @@ function runPA(g,mode){
     return checkHalf(g);
   }
   g.pc[pid]=(g.pc[pid]||0)+rint(2,6);
-  const over=Math.max(0,effPC(g,pid)-limitOf(p));
-  const stf=p.stf-over*.7,ctl=p.ctl-over*.5;
+  const tp=tirePen(g,pid);
+  const stf=p.stf-tp.s,ctl=p.ctl-tp.c;
   const k=clamp(.19+(stf-55)*.0028-(b.con-55)*.0024,.06,.38);
   const bb=clamp(.085+(b.eye-55)*.0015-(ctl-55)*.0016,.03,.2);
   const hbp=.01;
@@ -1094,9 +1104,9 @@ function throwPitch(g,off,def){
   if(off.act==='dsteal'&&!(r1&&r2&&!r3))off.act=null;
   const rep=getRep(c.p),pt=rep.find(r=>r.k===def.pt)||rep[0];
   g.pc[c.pid]=(g.pc[c.pid]||0)+1;(g.ptHist||(g.ptHist=[])).push(pt.k);
-  const over=Math.max(0,effPC(g,c.pid)-limitOf(c.p));
-  const pq=pt.q-over*.7,ctl=c.p.ctl-over*.5;
-  const velo=Math.round(c.p.velo+PT[pt.k][1]-over*.08+(R()*2-1));
+  const tp=tirePen(g,c.pid);
+  const pq=pt.q-tp.s,ctl=c.p.ctl-tp.c;
+  const velo=Math.round(c.p.velo+PT[pt.k][1]-tp.v+(R()*2-1));
   const pname=PT[pt.k][0];
   const tr=getTr(c.b);
   const sitMatch=off.sit==='FF'?pt.k==='FF':off.sit==='BR'?pt.k!=='FF':false;
@@ -1384,7 +1394,7 @@ function recHTML(g){
 }
 
 /* ================= 시즌 흐름 ================= */
-function recover(){Object.values(S.players).forEach(p=>{if(p.type==='P')p.fat=Math.max(0,p.fat-(p.role==='SP'?20:28))})}
+function recover(){Object.values(S.players).forEach(p=>{if(p.type==='P')p.fat=Math.max(0,p.fat-(p.role==='SP'?22:34))})}
 function myGameToday(){const d=S.sched[S.day];return d&&d.find(m=>m.includes(S.my))}
 /* AI 구단: 부상에서 돌아온 주축 선수를 1군에 복귀시킨다 */
 function aiRosters(){
@@ -2442,15 +2452,13 @@ function roleLabel(t,id){const i=t.lineup.indexOf(id);if(i>=0)return`${i+1}번 �
 function tabEntry(){
   const t=S.teams[S.my];
   const bats=t.active.filter(x=>P(x).type==='B'),pits=t.active.filter(x=>P(x).type==='P');
-  const actRow=id=>{const p=P(id),why=downBlock(t,id);return`<tr><td class="l">${roleLabel(t,id)}</td><td class="l">${pName(p)}</td><td class="l">${p.type==='B'?p.pos:p.role==='CL'?'CL':p.role}</td><td><b>${ovr(p)}</b></td><td class="l num mh" style="font-size:13px">${seasonLine(p)}</td>
-    <td class="l"><button class="btn sm" data-act="down" data-arg="${id}" ${why?`disabled title="${why}"`:''}>말소</button></td></tr>`};
+  const actRow=id=>{const p=P(id),why=downBlock(t,id);return`<tr><td class="l"><button class="btn sm" data-act="down" data-arg="${id}" ${why?`disabled title="${why}"`:''}>말소</button></td><td class="l">${roleLabel(t,id)}</td><td class="l">${pName(p)}</td><td class="l">${p.type==='B'?p.pos:p.role==='CL'?'CL':p.role}</td><td><b>${ovr(p)}</b></td><td class="l num mh" style="font-size:13px">${seasonLine(p)}</td></tr>`};
   const grp={P:'투수',C:'포수',I:'내야수',O:'외야수'};
   const inGrp=p=>S.ftab==='P'?p.type==='P':p.type==='B'&&(S.ftab==='C'?p.pos==='C':S.ftab==='I'?['1B','2B','3B','SS','IF'].includes(p.pos):['LF','CF','RF','OF','DH'].includes(p.pos));
   const fut=t.futures.filter(id=>inGrp(P(id))).sort((a,b)=>ovr(P(b))-ovr(P(a)));
-  const futRow=id=>{const p=P(id),why=upBlock(t,id);return`<tr><td class="l">${pName(p)}</td><td class="l">${p.type==='B'?p.pos:p.role}</td><td><b>${ovr(p)}</b></td><td class="l">${abil(p)}</td>
-    <td class="l mh" style="font-size:13px">${why&&why!=='엔트리 29명 꽉 참'?`<span class="${S.gday<p.injUntil?'hot':'lamp'}">${why}</span>`:'<span class="good">등록 가능</span>'}</td>
-    <td class="l"><button class="btn sm ${why?'':'primary'}" data-act="up" data-arg="${id}" ${why?`disabled title="${why}"`:''}>콜업</button></td></tr>`};
-  const head1=`<thead><tr><th class="l">역할</th><th class="l">선수</th><th class="l">포지션</th><th>OVR</th><th class="l mh">시즌 성적</th><th class="l"></th></tr></thead>`;
+  const futRow=id=>{const p=P(id),why=upBlock(t,id);return`<tr><td class="l"><button class="btn sm ${why?'':'primary'}" data-act="up" data-arg="${id}" ${why?`disabled title="${why}"`:''}>콜업</button></td><td class="l">${pName(p)}</td><td class="l">${p.type==='B'?p.pos:p.role}</td><td><b>${ovr(p)}</b></td><td class="l">${abil(p)}</td>
+    <td class="l mh" style="font-size:13px">${why&&why!=='엔트리 29명 꽉 참'?`<span class="${S.gday<p.injUntil?'hot':'lamp'}">${why}</span>`:'<span class="good">등록 가능</span>'}</td></tr>`};
+  const head1=`<thead><tr><th class="l"></th><th class="l">역할</th><th class="l">선수</th><th class="l">포지션</th><th>OVR</th><th class="l mh">시즌 성적</th></tr></thead>`;
   const full=t.active.length>=ENTRY_MAX;
   return`<div class="stack">
     <div class="secrow"><h2 class="sec">1군 엔트리 <span class="num ${full?'lamp':''}">${t.active.length}</span><span class="muted" style="font-size:16px"> / ${ENTRY_MAX}</span></h2>
@@ -2463,7 +2471,7 @@ function tabEntry(){
     <div class="secrow"><h2 class="sec">퓨처스리그 <span class="muted" style="font-size:16px">${t.futures.length}명</span></h2>
       <div class="seg">${Object.entries(grp).map(([k,l])=>`<button class="btn sm" data-act="ftab" data-arg="${k}" aria-pressed="${S.ftab===k}">${l}</button>`).join('')}</div></div>
     ${full?'<p class="note">1군이 29명으로 꽉 찼습니다. 콜업하려면 먼저 1군에서 한 명을 말소하세요.</p>':''}
-    <div class="tbl-wrap"><table class="t"><thead><tr><th class="l">선수</th><th class="l">포지션</th><th>OVR</th><th class="l">능력치</th><th class="l mh">상태</th><th class="l"></th></tr></thead><tbody>${fut.map(futRow).join('')||'<tr><td class="l muted" colspan="6">선수가 없습니다</td></tr>'}</tbody></table></div>
+    <div class="tbl-wrap"><table class="t"><thead><tr><th class="l"></th><th class="l">선수</th><th class="l">포지션</th><th>OVR</th><th class="l">능력치</th><th class="l mh">상태</th></tr></thead><tbody>${fut.map(futRow).join('')||'<tr><td class="l muted" colspan="6">선수가 없습니다</td></tr>'}</tbody></table></div>
     ${S.tx&&S.tx.length?`<section class="stack" style="gap:8px"><h2 class="sec">최근 엔트리 변동</h2><ul class="results">${S.tx.slice(-10).reverse().map(x=>`<li style="grid-template-columns:auto 1fr auto"><span class="muted num">${x.d}일차</span><span>${esc(x.n)}</span><span class="${x.k==='등록'?'good':'hot'}">${x.k}</span></li>`).join('')}</ul></section>`:''}
   </div>`;
 }
@@ -2565,11 +2573,14 @@ function newsHTML(n){
 
 function tabLineup(){
   const t=S.teams[S.my];
-  const row=(id,i,bench)=>{const p=P(id),s=p.st;return`<tr><td class="l">${bench?`<button class="btn sm" data-act="benchIn" data-arg="${id}">투입</button>`:`<span class="ctl"><button class="btn sm" aria-label="위로" data-act="lup" data-arg="${i}" ${i===0?'disabled':''}>↑</button><button class="btn sm" aria-label="아래로" data-act="ldn" data-arg="${i}" ${i===8?'disabled':''}>↓</button></span>`}</td>
-    <td class="l">${bench?'-':`<b class="lamp">${i+1}</b>`}</td><td class="l mh">${p.pos}</td><td class="l">${pName(p)}<span class="mbt mpos">${p.pos}</span></td>
+  const row=(id,i,bench)=>{const p=P(id),s=p.st;
+    const ord=bench?`<select class="dd" data-chg="benchTo" data-arg="${id}" aria-label="주전 투입"><option value="">투입</option>${t.lineup.map((x,k)=>`<option value="${k}">${k+1}번 ${esc(P(x).name)} 대신</option>`).join('')}</select>`
+      :`<select class="dd ord" data-chg="luOrder" data-arg="${i}" aria-label="타순">${t.lineup.map((x,k)=>`<option value="${k}" ${k===i?'selected':''}>${k+1}번</option>`).join('')}</select>`;
+    const pos=bench?p.pos:`<select class="dd pos" data-chg="luPos" data-arg="${id}" aria-label="포지션">${['C','1B','2B','3B','SS','LF','CF','RF','DH'].map(q=>`<option ${q===p.pos?'selected':''}>${q}</option>`).join('')}${['C','1B','2B','3B','SS','LF','CF','RF','DH'].includes(p.pos)?'':`<option selected>${p.pos}</option>`}</select>`;
+    return`<tr><td class="l">${ord}</td><td class="l">${pos}</td><td class="l">${pName(p)}</td>
     <td class="${rc(p.con)}">${p.con}</td><td class="${rc(p.pow)}">${p.pow}</td><td class="${rc(p.eye)}">${p.eye}</td><td class="${rc(p.spd)}">${p.spd}</td><td><b>${ovr(p)}</b></td>
-    <td>${avg(s)}</td><td>${s.hr}</td><td class="mh">${s.rbi}</td><td class="mh">${ops(s)}</td></tr>`};
-  const head=`<thead><tr><th class="l"></th><th class="l">#</th><th class="l mh">포지션</th><th class="l">선수</th><th><span class="dkt">컨택</span><span class="mbt">컨</span></th><th><span class="dkt">파워</span><span class="mbt">파</span></th><th><span class="dkt">선구</span><span class="mbt">선</span></th><th><span class="dkt">주력</span><span class="mbt">주</span></th><th>OVR</th><th>타율</th><th><span class="dkt">홈런</span><span class="mbt">HR</span></th><th class="mh">타점</th><th class="mh">OPS</th></tr></thead>`;
+    <td>${avg(s)}</td><td class="mh">${s.hr}</td><td class="mh">${s.rbi}</td><td class="mh">${ops(s)}</td></tr>`};
+  const head=`<thead><tr><th class="l">타순</th><th class="l">포지션</th><th class="l">선수</th><th><span class="dkt">컨택</span><span class="mbt">컨</span></th><th><span class="dkt">파워</span><span class="mbt">파</span></th><th><span class="dkt">선구</span><span class="mbt">선</span></th><th><span class="dkt">주력</span><span class="mbt">주</span></th><th>OVR</th><th>타율</th><th class="mh">홈런</th><th class="mh">타점</th><th class="mh">OPS</th></tr></thead>`;
   return`<div class="stack">
     <div class="secrow"><h2 class="sec">선발 라인업</h2><button class="btn sm" data-act="autoLU">추천 타순으로 정렬</button></div>
     <div class="tbl-wrap"><table class="t">${head}<tbody>${t.lineup.map((id,i)=>row(id,i,false)).join('')}</tbody></table></div>
@@ -2580,20 +2591,19 @@ function tabLineup(){
 function tabStaff(){
   const t=S.teams[S.my],nx=nextSP(t),n=t.rotation.length;
   const fat=f=>`<span class="fat ${fatCls(f)}"><b style="width:${f}%"></b></span> <span class="num" style="font-size:12px">${Math.round(f)}</span>`;
-  const sp=t.rotation.map((id,i)=>{const p=P(id),s=p.st,r=spRest(p);return`<tr class="${i===nx?'next':''}"><td class="l"><span class="ctl"><button class="btn sm" aria-label="위로" data-act="rup" data-arg="${i}" ${i===0?'disabled':''}>↑</button><button class="btn sm" aria-label="아래로" data-act="rdn" data-arg="${i}" ${i===n-1?'disabled':''}>↓</button></span></td>
-    <td class="l">${i+1}${i===nx?' <span class="badge" style="color:var(--good)">다음</span>':''}</td><td class="l">${pName(p)}${p.role!=='SP'?' <span class="badge cl">불펜 출신</span>':''}</td>
+  const sp=t.rotation.map((id,i)=>{const p=P(id),s=p.st,r=spRest(p);return`<tr class="${i===nx?'next':''}"><td class="l"><select class="dd ord" data-chg="rotOrder" data-arg="${i}" aria-label="선발 순서">${t.rotation.map((x,k)=>`<option value="${k}" ${k===i?'selected':''}>${k+1}선발</option>`).join('')}</select>${i===nx?' <span class="badge" style="color:var(--good)">다음</span>':''}</td><td class="l">${pName(p)}${p.role!=='SP'?' <span class="badge cl">불펜 출신</span>':''}</td>
     <td class="${rc(p.stf)} mh">${p.stf}</td><td class="${rc(p.ctl)} mh">${p.ctl}</td><td class="${rc(p.sta)} mh">${p.sta}</td><td><b>${ovr(p)}</b></td><td class="l">${fat(p.fat)}</td><td class="l">${r>=99?'-':r>=5?`<span class="good">${r}일</span>`:`<span class="hot">${r}일</span>`}</td>
     <td>${era(s)}</td><td class="mh">${s.w}</td><td class="mh">${s.l}</td><td class="mh">${ip(s.outs)}</td><td class="mh">${s.so}</td></tr>`}).join('');
   const rk={CL:0,SU:1,LR:2,MR:3};
-  const bp=t.bullpen.slice().sort((a,b)=>((P(a).role==='SP')-(P(b).role==='SP'))||rk[bpRole(P(a))]-rk[bpRole(P(b))]||ovr(P(b))-ovr(P(a))).map(id=>{const p=P(id),s=p.st,role=p.role==='SP'?null:bpRole(p);
+  const bp=t.bullpen.slice().sort((a,b)=>((P(a).role==='SP')-(P(b).role==='SP'))||rk[bpRole(P(a))]-rk[bpRole(P(b))]||ovr(P(b))-ovr(P(a))).map(id=>{const p=P(id),s=p.st,role=p.role==='SP'?'SPW':bpRole(p);
     return`<tr><td class="l">${pName(p)}${p.role==='SP'?' <span class="badge">대기 선발</span>':''}</td>
-    <td class="l">${role?`<span class="seg dk" style="flex-wrap:nowrap">${['CL','SU','LR','MR'].map(r=>`<button class="btn sm" data-act="setBP" data-arg="${id}|${r}" aria-pressed="${role===r}">${BPR[r]}</button>`).join('')}</span><button class="btn sm mb" data-act="setBP" data-arg="${id}|${({CL:'SU',SU:'LR',LR:'MR',MR:'CL'})[role]}" title="눌러서 역할 바꾸기">${BPR[role]} ▾</button>`:'-'}</td>
+    <td class="l"><select class="dd" data-chg="setBP" data-arg="${id}" aria-label="불펜 역할">${role==='SPW'?'<option selected value="">대기 선발</option>':''}${['CL','SU','LR','MR'].map(r=>`<option value="${r}" ${role===r?'selected':''}>${BPR[r]}</option>`).join('')}</select></td>
     <td class="${rc(p.stf)} mh">${p.stf}</td><td class="${rc(p.ctl)} mh">${p.ctl}</td><td><b>${ovr(p)}</b></td><td class="l mh">${fat(p.fat)}</td><td class="l">${restLabel(p)}</td>
     <td>${era(s)}</td><td class="mh">${s.g}</td><td>${s.sv}</td><td>${s.hd||0}</td><td class="mh">${ip(s.outs)}</td>
     <td class="l mh"><button class="btn sm" data-act="toRot" data-arg="${id}">선발 전환</button></td></tr>`}).join('');
   return`<div class="stack">
     <div class="secrow"><h2 class="sec">선발 로테이션 <span class="muted" style="font-size:15px">${n}인</span></h2><span class="muted" style="font-size:13px">5일 로테이션 · 등판 후 4일 쉬어야 다시 나섭니다 · 1군 선발 요원이 모자라면 퓨처스 선발이 자동으로 올라옵니다</span></div>
-    <div class="tbl-wrap"><table class="t"><thead><tr><th class="l"></th><th class="l">순번</th><th class="l">선수</th><th class="mh">구위</th><th class="mh">제구</th><th class="mh">체력</th><th>OVR</th><th class="l"><span class="dkt">피로도</span><span class="mbt">피로</span></th><th class="l">휴식</th><th><span class="dkt">평균자책</span><span class="mbt">ERA</span></th><th class="mh">승</th><th class="mh">패</th><th class="mh">이닝</th><th class="mh">삼진</th></tr></thead><tbody>${sp}</tbody></table></div>
+    <div class="tbl-wrap"><table class="t"><thead><tr><th class="l">순번</th><th class="l">선수</th><th class="mh">구위</th><th class="mh">제구</th><th class="mh">체력</th><th>OVR</th><th class="l"><span class="dkt">피로도</span><span class="mbt">피로</span></th><th class="l">휴식</th><th><span class="dkt">평균자책</span><span class="mbt">ERA</span></th><th class="mh">승</th><th class="mh">패</th><th class="mh">이닝</th><th class="mh">삼진</th></tr></thead><tbody>${sp}</tbody></table></div>
     <div class="secrow"><h2 class="sec">불펜</h2><span class="muted" style="font-size:13px">마무리는 9회 세이브 상황, 필승조는 7~8회 접전, 롱릴리프는 선발이 일찍 무너질 때, 추격조는 점수 차가 클 때 나섭니다 · 2연투나 전날 30구 이상이면 쉬게 합니다</span></div>
     <div class="tbl-wrap"><table class="t"><thead><tr><th class="l">선수</th><th class="l">역할</th><th class="mh">구위</th><th class="mh">제구</th><th>OVR</th><th class="l mh">피로도</th><th class="l"><span class="dkt">최근 등판</span><span class="mbt">최근</span></th><th><span class="dkt">평균자책</span><span class="mbt">ERA</span></th><th class="mh">경기</th><th><span class="dkt">세이브</span><span class="mbt">SV</span></th><th><span class="dkt">홀드</span><span class="mbt">HD</span></th><th class="mh">이닝</th><th class="l mh"></th></tr></thead><tbody>${bp}</tbody></table></div>
   </div>`;
@@ -2689,7 +2699,7 @@ function pitcherCard(g,mine){
   return`<div class="pc ${mine?'mine':''}"><span class="nm">${pName(p)}</span>
     <span class="ln">${ip(outs)}이닝 ${runs}실점 · 투구수 <b class="num ${r>1?'hot':r>.85?'lamp':''}">${pc}</b></span>
     <div class="meter ${r>1?'hi':r>.8?'mid':''}" title="투구 한계 대비"><b style="width:${clamp(r*100,2,100)}%"></b></div>
-    <div class="mini">구위 <b class="${rc(p.stf)}">${p.stf}</b> 제구 <b class="${rc(p.ctl)}">${p.ctl}</b> 체력 <b class="${rc(p.sta)}">${p.sta}</b></div></div>`;
+    ${(()=>{const t=tirePen(g,id),cur=(v,d)=>d>=1?`<b class="${rc(v)}">${v}</b><span class="drop">→${Math.round(v-d)}</span>`:`<b class="${rc(v)}">${v}</b>`;return`<div class="mini">구위 ${cur(p.stf,t.s)} 제구 ${cur(p.ctl,t.c)} 체력 <b class="${rc(p.sta)}">${p.sta}</b></div>${t.s>=1?`<div class="tire">지쳐서 구위 −${Math.round(t.s)} · 제구 −${Math.round(t.c)}</div>`:''}`})()}</div>`;
 }
 function segRow(label,key,opts){const g=S.cur,rs=(curRec(g).set||{})[key];return`<div class="crow"><span class="clbl">${label}</span><div class="seg">${opts.map(([v,l,dis])=>`<button class="btn sm ${rs===v?'rec':''}" title="${rs===v?'코치 추천':''}" data-act="gui" data-arg="${key}|${v}" aria-pressed="${g.ui[key]===v}" ${dis?'disabled':''}>${l}</button>`).join('')}</div></div>`}
 function pseqHTML(g){
@@ -2863,11 +2873,15 @@ const ACT={
     if(w.length){MODAL=`<h3>⚠ ${esc(P(id).name)} 투입 확인</h3><ul class="warnl">${w.map(x=>`<li>${esc(x)}</li>`).join('')}</ul><p class="note">그래도 올릴까요? 팬들 반응이 좋지 않을 수 있어요.</p><div class="btnrow"><button class="btn primary" data-act="doRPok" data-arg="${id}">그래도 투입</button><button class="btn ghost" data-act="g" data-arg="change">다른 투수 고르기</button></div>`;return}
     changePitcher(g,us,id);MODAL=''},
   doRPok:id=>{const g=S.cur,us=g.T[0]===S.my?0:1;changePitcher(g,us,id);MODAL=''},
-  setBP:a=>{const [id,r]=a.split('|'),t=S.teams[S.my],p=P(id);
+  setBP:a=>{const [id,r]=a.split('|'),t=S.teams[S.my],p=P(id);if(!r)return;if(p.role==='SP'){p.role='RP';p.wasSP=true;p.rotLock=false}
     if(r==='CL'){t.bullpen.forEach(x=>{const q=P(x);if(q.role==='CL'){q.role='RP';q.bp='SU';q.bpLock=true}});p.role='CL';p.bpLock=false}
     else{if(p.role==='CL'){const nx=t.bullpen.filter(x=>x!==id&&P(x).role!=='SP').sort((a,b)=>ovr(P(b))-ovr(P(a)))[0];if(nx){P(nx).role='CL';P(nx).bpLock=false}p.role='RP'}p.bp=r;p.bpLock=true}
     assignBullpen(t)},
   applyGame:()=>{const g=S.cur;if(!g||!g.over)return;if(g.post)postResult(g);else completeDay(g);S.cur=null;S.screen='hub';if(!['stand','stats','front'].includes(S.tab))S.tab='lineup'},
+  luOrder:a=>{const [i,j]=a.split('|').map(Number),l=S.teams[S.my].lineup;if(isNaN(j)||i===j)return;[l[i],l[j]]=[l[j],l[i]];S.luChg=true},
+  rotOrder:a=>{const [i,j]=a.split('|').map(Number),l=S.teams[S.my].rotation;if(isNaN(j)||i===j)return;[l[i],l[j]]=[l[j],l[i]]},
+  luPos:a=>{const [id,pos]=a.split('|'),t=S.teams[S.my],p=P(id),old=p.pos;if(pos===old)return;const o=t.lineup.find(x=>x!==id&&P(x).pos===pos);if(o)P(o).pos=old;p.pos=pos;S.luChg=true},
+  benchTo:a=>{const [id,k]=a.split('|');if(k==='')return;ACT.doBench(id+'|'+k)},
   lup:i=>{S.luChg=true;i=+i;const l=S.teams[S.my].lineup;[l[i-1],l[i]]=[l[i],l[i-1]]},
   ldn:i=>{S.luChg=true;i=+i;const l=S.teams[S.my].lineup;[l[i+1],l[i]]=[l[i],l[i+1]]},
   rup:i=>{i=+i;const l=S.teams[S.my].rotation;[l[i-1],l[i]]=[l[i],l[i-1]]},
@@ -2886,7 +2900,7 @@ const ACT={
   down:id=>{const t=S.teams[S.my];if(downBlock(t,id))return;t.active=t.active.filter(x=>x!==id);t.futures.push(id);t.down[id]=S.gday+RECALL_DAYS;normRoster(t);S.tx.push({d:S.gday+1,n:P(id).name,k:'말소'})},
   up:id=>{const t=S.teams[S.my];if(upBlock(t,id))return;t.futures=t.futures.filter(x=>x!==id);t.active.push(id);delete t.down[id];normRoster(t);S.tx.push({d:S.gday+1,n:P(id).name,k:'등록'})},
   toRot:id=>modalRot(id),
-  doRot:a=>{const [id,i]=a.split('|');const t=S.teams[S.my];if(P(id).role==='CL')P(id).role='RP';if(P(id).role!=='SP')P(id).rotLock=true;const old=t.rotation[+i];if(old)P(old).rotLock=false;t.rotation[+i]=id;normRoster(t);MODAL=''},
+  doRot:a=>{const [id,i]=a.split('|');const t=S.teams[S.my];if(P(id).role==='CL')P(id).role='RP';if(P(id).wasSP){P(id).role='SP';P(id).wasSP=false;P(id).bpLock=false}if(P(id).role!=='SP')P(id).rotLock=true;const old=t.rotation[+i];if(old)P(old).rotLock=false;t.rotation[+i]=id;normRoster(t);MODAL=''},
   askRelease:id=>{const p=P(id),t=S.teams[S.my];const left=p.fr==='F'?REP_F-t.repF:REP_A-t.repA;
     MODAL=`<h3>${esc(p.name)} 방출</h3><p class="note">방출한 선수는 되돌릴 수 없습니다. 이번 시즌 남은 ${p.fr==='F'?'외국인':'아시아쿼터'} 교체 횟수는 ${left}회${S.day>=signDeadline()?'이고, 교체 마감이 지나 새 선수를 뽑을 수 없습니다':''}.</p>
     <div class="btnrow"><button class="btn primary" data-act="doRelease" data-arg="${id}">방출하기</button><button class="btn ghost" data-act="closeModal">취소</button></div>`},
@@ -2914,6 +2928,10 @@ if(typeof document!=='undefined'){
     if(el.dataset.act==='closeBg'&&e.target!==el)return;
     if(f(el.dataset.arg,el,e)==='skip')return;
     if(S)save();render();
+  });
+  document.addEventListener('change',e=>{
+    const el=e.target.closest&&e.target.closest('[data-chg]');if(!el)return;
+    const f=ACT[el.dataset.chg];if(!f)return;f(el.dataset.arg+'|'+el.value);if(S)save();render();
   });
   document.addEventListener('submit',e=>{
     if(e.target.id!=='nameForm')return;e.preventDefault();
