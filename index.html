@@ -352,6 +352,7 @@ table.t tr.next td{background:rgba(139,219,166,.08)}
   .ctrlcol .decide .btn{padding:10px 6px;font-size:16px}
   .ctrlcol .decide .btn small{font-size:10.5px}
 }
+.tfilt{display:grid;gap:6px}.tfilt .tq{font:inherit;font-size:14px;padding:8px 10px;border-radius:8px;border:1px solid var(--line);background:var(--deep);color:var(--chalk);width:100%}.tfilt .seg{gap:4px}.tfilt .seg .btn{padding:4px 8px;font-size:12px}
 /* ===== 팬 게시판 ===== */
 .cbox{display:grid;gap:6px;padding:12px 14px;border-radius:16px;background:var(--panel);border:1px solid var(--line)}
 .cboard{display:grid;border:1px solid var(--line);border-radius:16px;background:var(--panel);overflow:hidden}
@@ -2182,6 +2183,7 @@ function render(){
   else if(S.screen==='intro')app.innerHTML=introHTML();
   else if(S.screen==='game'&&S.cur)app.innerHTML=gameHTML();
   else{S.screen='hub';app.innerHTML=hubHTML()}
+  if(S&&S.screen==='hub'&&S.tab==='front'){applyTF('g');applyTF('t')}
   if(S&&S.screen==='game'&&S.cur)pvStart();else if(ANIM.raf){cancelAnimationFrame(ANIM.raf);ANIM.raf=0}
   $('#modal').innerHTML=MODAL?`<div class="ovl" data-act="closeBg"><div class="mdl" role="dialog" aria-modal="true">${MODAL}</div></div>`:'';
 }
@@ -2477,9 +2479,21 @@ function scoutAbil(p){
 }
 function tradeRow(id,side,sel){
   const p=P(id),t=S.teams[TEAMOF[id]];const on=sel.includes(id);
-  return`<button class="trow" data-act="tsel" data-arg="${side}|${id}" aria-pressed="${on}">
+  const grp=p.type==='P'?'P':p.pos==='C'?'C':['1B','2B','3B','SS','IF'].includes(p.pos)?'I':'O';
+  return`<button class="trow" data-act="tsel" data-arg="${side}|${id}" aria-pressed="${on}" data-nm="${esc(p.name)}" data-grp="${grp}" data-lv="${t.active.includes(id)?1:2}">
     <span class="tn">${pName(p)}</span><span class="muted">${p.type==='B'?p.pos:p.role}${t.active.includes(id)?'':' · 2군'}</span><span class="num"><b>${ovr(p)}</b></span>
     ${abil(p)}</button>`;
+}
+
+/* 트레이드 목록 검색·필터: 다시 그리지 않고 행만 숨긴다 */
+const TF={g:{q:'',f:'A'},t:{q:'',f:'A'}};
+function applyTF(side){const st=TF[side];document.querySelectorAll(`.tlist[data-side="${side}"] .trow`).forEach(r=>{
+  const okQ=!st.q||r.dataset.nm.includes(st.q),f=st.f,okF=f==='A'||(f==='1'||f==='2'?r.dataset.lv===f:r.dataset.grp===f);r.style.display=okQ&&okF?'':'none'});
+  document.querySelectorAll(`.tfilt[data-side="${side}"] .tf`).forEach(b=>b.setAttribute('aria-pressed',b.dataset.f===st.f));
+  const inp=document.querySelector(`.tfilt[data-side="${side}"] .tq`);if(inp&&inp.value!==st.q)inp.value=st.q}
+if(typeof document!=='undefined'){
+  document.addEventListener('input',e=>{const t=e.target;if(!t.classList||!t.classList.contains('tq'))return;const side=t.closest('.tfilt').dataset.side;TF[side].q=t.value.trim();applyTF(side)});
+  document.addEventListener('click',e=>{const b=e.target.closest&&e.target.closest('.tf');if(!b)return;const side=b.closest('.tfilt').dataset.side;TF[side].f=b.dataset.f;applyTF(side)},true);
 }
 function tabFront(){
   buildTeamOf();
@@ -2500,13 +2514,15 @@ function tabFront(){
   if(tr.partner!==null){
     const pt=S.teams[tr.partner];
     const sortO=(a,b)=>ovr(P(b))-ovr(P(a));
-    const myList=tradeable(t).sort(sortO).slice(0,30),theirList=tradeable(pt).sort(sortO).slice(0,30);
+    const sel1=(a,sel)=>a.sort((x,y)=>(sel.includes(y)-sel.includes(x))||sortO(x,y));
+    const myList=sel1(tradeable(t),tr.give),theirList=sel1(tradeable(pt),tr.take);
+    const filt=side=>`<div class="tfilt" data-side="${side}"><input type="search" class="tq" placeholder="이름 검색" aria-label="이름 검색"><div class="seg">${[['A','전체'],['P','투수'],['C','포수'],['I','내야'],['O','외야'],['1','1군'],['2','2군']].map(([k,l],i)=>`<button class="btn sm tf" data-f="${k}" aria-pressed="${i===0}">${l}</button>`).join('')}</div></div>`;
     const odds=tradeOdds(tr.partner,tr.give,tr.take),[band,cls]=oddsBand(odds);
     const gv=pkgVal(tr.give),tv=pkgVal(tr.take),tot=Math.max(1,gv+tv);
     const asked=t.ask&&t.ask[tr.partner]===S.gday;
     tradeHTML=`<div class="tgrid">
-      <div class="stack" style="gap:6px"><span class="eyebrow">보낼 선수 · ${t.nick} (최대 3명)</span><div class="tlist">${myList.map(id=>tradeRow(id,'g',tr.give)).join('')}</div></div>
-      <div class="stack" style="gap:6px"><span class="eyebrow">받을 선수 · ${pt.nick} (최대 3명)</span><div class="tlist">${theirList.map(id=>tradeRow(id,'t',tr.take)).join('')}</div></div>
+      <div class="stack" style="gap:6px"><span class="eyebrow">보낼 선수 · ${t.nick} (최대 3명) · ${myList.length}명</span>${filt('g')}<div class="tlist" data-side="g">${myList.map(id=>tradeRow(id,'g',tr.give)).join('')}</div></div>
+      <div class="stack" style="gap:6px"><span class="eyebrow">받을 선수 · ${pt.nick} (최대 3명) · ${theirList.length}명</span>${filt('t')}<div class="tlist" data-side="t">${theirList.map(id=>tradeRow(id,'t',tr.take)).join('')}</div></div>
     </div>
     <div class="act">
       <div class="secrow"><span>주는 쪽 <b class="num">${Math.round(gv/100)}</b></span><span>받는 쪽 <b class="num">${Math.round(tv/100)}</b></span></div>
@@ -2876,7 +2892,7 @@ const ACT={
     <div class="btnrow"><button class="btn primary" data-act="doRelease" data-arg="${id}">방출하기</button><button class="btn ghost" data-act="closeModal">취소</button></div>`},
   doRelease:id=>{if(inGame())return;releasePlayer(S.teams[S.my],id);buildTeamOf();MODAL=''},
   sign:id=>{const t=S.teams[S.my];if(signBlock(t,id))return;signPlayer(t,id);buildTeamOf()},
-  tpartner:a=>{S.trade={partner:+a,give:[],take:[],msg:null}},
+  tpartner:a=>{S.trade={partner:+a,give:[],take:[],msg:null};TF.t={q:'',f:'A'}},
   tsel:a=>{const [side,id]=a.split('|');const tr=S.trade;const k=side==='g'?'give':'take';
     if(tr[k].includes(id))tr[k]=tr[k].filter(x=>x!==id);else if(tr[k].length<3)tr[k].push(id);tr.msg=null},
   tclear:()=>{S.trade.give=[];S.trade.take=[];S.trade.msg=null},
