@@ -797,7 +797,7 @@ table.t tr.me td:first-child{box-shadow:inset 4px 0 0 var(--my,#ffb73d)}
 
 .mdl:has(.gsum){max-width:560px;max-height:none;overflow:visible}
 .gsum{display:grid;gap:12px}
-.hot{display:grid;gap:2px;padding:14px 16px;border-radius:16px;background:color-mix(in srgb,var(--acc,#ffb73d) 14%,rgba(0,0,0,.3));border:1px solid color-mix(in srgb,var(--acc,#ffb73d) 45%,transparent)}.hot b{font-size:19px;color:var(--chalk)}.hotpick{display:grid;gap:6px}.hotpick button{display:grid;gap:2px;text-align:left;font:inherit;color:var(--chalk);padding:10px 14px;border-radius:12px;border:1px solid rgba(236,231,214,.16);background:rgba(0,0,0,.25);cursor:pointer}.hotpick button:hover{border-color:var(--acc,#ffb73d)}.hotpick b{font-size:15px}.hotpick span{font-size:12.5px}.hot-l{margin-top:6px;font-weight:800;color:var(--acc,#ffb73d)}
+.hotcard{display:grid;gap:2px;padding:14px 16px;border-radius:16px;background:color-mix(in srgb,var(--acc,#ffb73d) 14%,rgba(0,0,0,.3));border:1px solid color-mix(in srgb,var(--acc,#ffb73d) 45%,transparent)}.hotcard b{font-size:19px;color:var(--chalk)}.hotpick{display:grid;gap:6px}.hotpick button{display:grid;gap:2px;text-align:left;font:inherit;color:var(--chalk);padding:10px 14px;border-radius:12px;border:1px solid rgba(236,231,214,.16);background:rgba(0,0,0,.25);cursor:pointer}.hotpick button:hover{border-color:var(--acc,#ffb73d)}.hotpick b{font-size:15px}.hotpick span{font-size:12.5px}.hot-l{margin-top:6px;font-weight:800;color:var(--acc,#ffb73d)}
 .gs-hd{display:grid;justify-items:center;gap:6px;padding:14px 12px;border-radius:18px;background:rgba(0,0,0,.35);border:1px solid rgba(236,231,214,.14)}
 .gs-hd.w{border-color:var(--acc,#ffb73d);box-shadow:inset 0 0 0 1px var(--acc,#ffb73d)}
 .gs-res{font-size:12px;font-weight:900;letter-spacing:.2em;padding:3px 12px;border-radius:999px;background:var(--acc,#ffb73d);color:var(--accfg,#0a0e14)}
@@ -820,6 +820,13 @@ table.t tr.me td:first-child{box-shadow:inset 4px 0 0 var(--my,#ffb73d)}
 .gs-list b{font-weight:800;white-space:nowrap}.gs-list span{color:var(--muted);text-align:right}
 .gs-list em{font-style:normal;font-size:10.5px;font-weight:900;padding:1px 6px;border-radius:5px;background:var(--acc,#ffb73d);color:var(--accfg,#0a0e14);margin-left:2px}
 .gsum>.btnrow{margin:0}.gsum>.btnrow .btn.primary{flex:1}
+/* 모달이 화면보다 길어도 스크롤로 버튼까지 닿게 */
+.ovl{display:flex!important;flex-direction:column;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
+.ovl>.mdl{margin:auto;flex:none}
+.gsum>.btnrow{position:sticky;bottom:-16px;z-index:2;margin:0 -16px -16px;padding:12px 16px 16px;background:linear-gradient(180deg,rgba(12,26,20,0),rgba(12,26,20,.96) 30%);border-radius:0 0 22px 22px}
+.gs-dec b,.gs-tn{white-space:nowrap}
+@media (max-width:420px){.gs-hd{padding:12px 8px}.gs-num{font-size:30px}.gs-tn{font-size:15px}.gs-dec{font-size:12.5px}.gs-dec span{grid-template-columns:30px auto;gap:4px}.gs-sc3{gap:6px}.gs-list li{padding:5px 9px;font-size:12.5px}}
+@media (max-height:700px){.gsum{gap:8px}.gs-hd{padding:10px 8px;gap:4px}.gs-list{gap:3px}.gs-list li{padding:4px 9px}}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 </style>
 <style>html,body{margin:0;padding:0}body{font-family:var(--f-body);font-size:14px}[hidden]{display:none!important}img{max-width:100%}*{box-sizing:border-box}:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}</style>
@@ -2937,7 +2944,7 @@ function hotModal(){
   const full=t.active.length>=ENTRY_MAX;
   const outs=full?t.active.filter(id=>P(id).type===p.type&&!P(id).fr&&!downBlock(t,id)&&!t.lineup.includes(id)&&!t.rotation.includes(id)).sort((a,b)=>ovr(P(a))-ovr(P(b))).slice(0,4):[];
   return`<h3>📈 퓨처스 리포트</h3>
-    <div class="hot"><b>${pName(p)}</b><span class="muted">${p.type==='B'?p.pos:p.role} · OVR ${ovr(p)}</span><div class="hot-l">${esc(H.line)}</div></div>
+    <div class="hotcard"><b>${pName(p)}</b><span class="muted">${p.type==='B'?p.pos:p.role} · OVR ${ovr(p)}</span><div class="hot-l">${esc(H.line)}</div></div>
     <p class="note">퓨처스 코치가 콜업을 추천합니다.${full?' 1군이 꽉 차 있어서 한 명을 내려야 합니다.':''}</p>
     ${full?`<div class="hotpick">${outs.map(id=>`<button data-act="hotUp" data-arg="${H.id}|${id}"><b>${esc(P(id).name)} 말소하고 콜업</b><span class="num muted">${P(id).type==='B'?P(id).pos:P(id).role} · OVR ${ovr(P(id))} · ${seasonLine(P(id))}</span></button>`).join('')}</div>`:''}
     <div class="btnrow">${full?'':`<button class="btn primary" data-act="hotUp" data-arg="${H.id}">콜업하기</button>`}<button class="btn ghost" data-act="hotSkip">다음에</button></div>`;
@@ -3154,7 +3161,8 @@ const INJ_B=['햄스트링 부상','옆구리 근육 손상','발목 염좌','�
 function incident(t,force){
   const pool=[...t.lineup,...t.rotation,...t.bullpen.slice(0,5)].filter(id=>{const p=P(id);return p&&S.gday>=(p.injUntil||0)&&!p.slump});
   if(!pool.length)return;const id=pick(pool),p=P(id);
-  const r=force==='구설수'?.5:R()<.55?.1:.9; // 부상 55% · 컨디션 난조 45%, 구설수는 리그 전체에서 따로let kind,days,text;
+  const r=force==='구설수'?.5:R()<.55?.1:.9; // 부상 55% · 컨디션 난조 45%, 구설수는 리그 전체에서 따로
+  let kind,days,text;
   if(r<.45){kind='부상';days=rint(10,35);text=`${p.name} ${joRo(pick(p.type==='P'?INJ_P:INJ_B))} 1군 말소 · 복귀까지 약 ${days}일`}
   else if(r<.65){kind='구설수';days=rint(7,20);text=`${p.name} 경기 외적인 구설수로 ${days}일 출장 정지`}
   else{kind='난조';days=rint(7,18);text=`${p.name} 컨디션 난조 · ${days}일 동안 능력치 하락`}
