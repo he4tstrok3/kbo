@@ -2264,17 +2264,23 @@ function allStar(){
   addNews(S.my,`${S.season} 올스타 브레이크 · 1주일 휴식`,'in');
   (S.alerts||(S.alerts=[])).push({kind:'올스타',text:'올스타 브레이크로 1주일 쉬었습니다. 모든 선수의 피로도가 회복됐습니다.'});
 }
+/* 부가 처리에서 오류가 나도 하루 진행은 막히지 않게 */
+function safe(fn,label){try{return fn()}catch(e){errNote(e,label)}}
+function errNote(e,label){try{const m=`${label||''} ${e&&e.message||e}`.trim();(S.errs||(S.errs=[])).push({d:S.day,m,st:String(e&&e.stack||'').split('\n').slice(1,4).join(' / ')});if(S.errs.length>20)S.errs.shift();console.error(label,e)}catch(_){}}
 function completeDay(userG){
   const res=[];let myG=null;
-  for(const [h,a] of S.sched[S.day]){
-    let g=(userG&&userG.T[1]===h&&userG.T[0]===a)?userG:simGame(mkGame(h,a));
+  for(const [h,a] of (S.sched[S.day]||[])){
+    let g=(userG&&userG.T[1]===h&&userG.T[0]===a)?userG:safe(()=>simGame(mkGame(h,a)),'sim');
+    if(!g)continue;
     if(h===S.my||a===S.my)myG=g;
     res.push({h,a,hs:g.score[1],as:g.score[0],inn:g.inning,wp:g.wp,lp:g.lp,svp:g.svp});
   }
-  S.last=res;S.day++;S.gday++;recover();S.cur=null;aiRosters();S.teams.forEach(t=>ensureRotation(t));buildTeamOf();if(S.phase==='season'){frontDaily();slumpTick();incidents();buildTeamOf();futHot()}
-  if(myG)commAfterGame(myG,`${S.day}일차`);
-  if(S.phase==='season'&&S.asb!==S.season&&S.day>=Math.floor(S.sched.length/2)&&S.day<S.sched.length)allStar();
-  if(S.day>=S.sched.length){startPost();commSeasonEnd()}
+  S.last=res;S.day++;S.gday++;S.cur=null;
+  safe(recover,'recover');safe(aiRosters,'aiRosters');safe(()=>S.teams.forEach(t=>ensureRotation(t)),'rotation');safe(buildTeamOf,'teamOf');
+  if(S.phase==='season'){safe(frontDaily,'front');safe(slumpTick,'slump');safe(incidents,'incidents');safe(buildTeamOf,'teamOf');safe(futHot,'futHot')}
+  if(myG)safe(()=>commAfterGame(myG,`${S.day}일차`),'comm');
+  if(S.phase==='season'&&S.asb!==S.season&&S.day>=Math.floor(S.sched.length/2)&&S.day<S.sched.length)safe(allStar,'allStar');
+  if(S.day>=S.sched.length){startPost();safe(commSeasonEnd,'commEnd')}
 }
 const pct=t=>(t.w+t.l)?t.w/(t.w+t.l):0;
 function standings(){return S.teams.slice().sort((a,b)=>pct(b)-pct(a)||(b.rs-b.ra)-(a.rs-a.ra)||b.w-a.w)}
@@ -2967,6 +2973,14 @@ function render(){
   if(S&&S.hotPop&&!MODAL&&S.screen==='hub'&&S.phase==='season')MODAL=hotModal();
   renderModal();
 }
+function showErr(e,label){try{
+  const st=String(e&&e.stack||'').split('\n').slice(1,8).map(x=>x.trim()).join('\n');
+  const info=[`[더그아웃 오류 리포트]`,S?`${S.season} 시즌 · ${S.day+1}일차 · ${S.phase} · 화면 ${S.screen}/${S.tab} · 팀 ${S.teams[S.my].nick}`:'타이틀 화면',`동작: ${label}`,`오류: ${e&&e.message||e}`,st,
+    S&&S.errs&&S.errs.length?`최근 기록:\n`+S.errs.slice(-3).map(x=>`- ${x.d+1}일차 ${x.m}`).join('\n'):'',`기기: ${navigator.userAgent}`].filter(Boolean).join('\n');
+  MODAL=`<h3>⚠️ 오류가 발생했어요</h3><p class="note">확인을 누르면 계속 진행할 수 있어요.</p>
+    <pre id="errBox" hidden style="white-space:pre-wrap;word-break:break-all;font-size:11px;line-height:1.5;background:rgba(0,0,0,.4);padding:10px 12px;border-radius:10px;margin:0;max-height:260px;overflow:auto;user-select:text;-webkit-user-select:text">${esc(info)}</pre>
+    <div class="btnrow"><button class="btn" data-act="errShow">오류 내용 확인하기</button><button class="btn primary" data-act="closeModal">확인</button></div>`;
+  renderModal();if(S)save()}catch(_){}}
 function renderModal(){$('#modal').innerHTML=MODAL?`<div class="ovl" data-act="closeBg"><div class="mdl" role="dialog" aria-modal="true">${MODAL}</div></div>`:''}
 const MODAL_ONLY=new Set(['askCut','askRelease','stoveNextAsk','askNew','closeModal','closeBg']);
 const STAGE=`<div class="stage" aria-hidden="true"><svg viewBox="0 0 400 300" preserveAspectRatio="xMidYMax slice"><path d="M-40 300 Q200 40 440 300" fill="none" stroke="rgba(236,231,214,.10)" stroke-width="2"/><path d="M200 290 L290 200 L200 110 L110 200 Z" fill="none" stroke="rgba(236,231,214,.12)" stroke-width="1.5"/><circle cx="200" cy="200" r="9" fill="rgba(236,231,214,.08)"/><path d="M200 290 L20 110 M200 290 L380 110" stroke="rgba(236,231,214,.07)" stroke-width="1"/></svg><i class="flood l"></i><i class="flood r"></i></div>`;
@@ -4030,7 +4044,7 @@ const ACT={
     else{if(p.role==='CL'){const nx=t.bullpen.filter(x=>x!==id&&P(x).role!=='SP').sort((a,b)=>ovr(P(b))-ovr(P(a)))[0];if(nx){P(nx).role='CL';P(nx).bpLock=false}p.role='RP'}p.bp=r;p.bpLock=true}
     assignBullpen(t)},
   sumGo:()=>{MODAL='';const post=S.cur&&S.cur.post;ACT.applyGame();if(!post){S.tab='lineup';S.dd=null}window.scrollTo&&window.scrollTo(0,0)},
-  applyGame:()=>{const g=S.cur;if(!g||!g.over)return;if(g.post)postResult(g);else completeDay(g);S.cur=null;S.screen='hub';if(!['stand','stats','front'].includes(S.tab))S.tab='lineup'},
+  applyGame:()=>{const g=S.cur;if(!g||!g.over)return;const d0=S.day;try{if(g.post)postResult(g);else completeDay(g)}catch(e){errNote(e,'apply');if(!g.post&&S.day===d0){S.cur=null;completeDay(null)}}S.cur=null;S.screen='hub';if(!['stand','stats','front'].includes(S.tab))S.tab='lineup'},
   luOrder:a=>{const [i,j]=a.split('|').map(Number),l=S.teams[S.my].lineup;if(isNaN(j)||i===j)return;[l[i],l[j]]=[l[j],l[i]];S.luChg=true},
   rotOrder:a=>{const [i,j]=a.split('|').map(Number),l=S.teams[S.my].rotation;if(isNaN(j)||i===j)return;[l[i],l[j]]=[l[j],l[i]]},
   luPos:a=>{const [id,pos]=a.split('|'),t=S.teams[S.my],p=P(id),old=p.pos;if(pos===old)return;const o=t.lineup.find(x=>x!==id&&P(x).pos===pos);if(o)P(o).pos=old;p.pos=pos;S.luChg=true},
@@ -4104,6 +4118,7 @@ const ACT={
   doCut:id=>{if(inGame()||P(id).fr)return;const t=S.teams[S.my];if(![...t.active,...t.futures].includes(id))return;cutPlayer(t,id);S.teams.forEach(x=>ensureRotation(x));(S.tx||(S.tx=[])).push({d:S.gday+1,n:P(id).name,k:'방출'});MODAL=''},
   signW:id=>{const t=S.teams[S.my];if(waiverBlock(t,id))return;signWaiver(t,id)},
   closeModal:()=>{MODAL=''},
+  errShow:(a,el)=>{const b=document.getElementById('errBox');if(b){b.hidden=!b.hidden;el.textContent=b.hidden?'오류 내용 확인하기':'오류 내용 닫기'}return'skip'},
   closeBg:(a,el,e)=>{if(e.target===el)MODAL=''},
 };
 if(typeof document!=='undefined'){
@@ -4112,10 +4127,10 @@ if(typeof document!=='undefined'){
     const el=e.target.closest('[data-act]');if(!el)return;
     const f=ACT[el.dataset.act];if(!f)return;
     if(el.dataset.act==='closeBg'&&e.target!==el)return;
-    const r=f(el.dataset.arg,el,e);if(r==='skip')return;
+    let r;try{r=f(el.dataset.arg,el,e)}catch(err){errNote(err,el.dataset.act);showErr(err,el.dataset.act);return}if(r==='skip')return;
     if(S&&S.phase==='stove'&&S.stove&&!S.stove.comp&&STOVE_TICK.has(el.dataset.act)&&r!=='modal')stoveDay();
     if(r==='modal'||MODAL_ONLY.has(el.dataset.act)){renderModal();if(S)saveSoon();return}
-    render();if(S)saveSoon();
+    try{render()}catch(err){errNote(err,'render');try{if(S){S.tab='today';S.dd=null;if(S.screen==='game'&&S.cur&&S.cur.over){}render()}}catch(_){}showErr(err,'render')}if(S)saveSoon();
   });
   document.addEventListener('change',e=>{
     const el=e.target.closest&&e.target.closest('[data-chg]');if(!el)return;
