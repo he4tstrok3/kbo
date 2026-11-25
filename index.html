@@ -1101,11 +1101,31 @@ function ST(g,id){const p=P(id);if(!p[g.sk])p[g.sk]=p.type==='B'?newBatSt():newP
 function log(g,t,k){g.log.push({t,k,n:g.log.length})}
 function tName(i){return S.teams[i].nick}
 
+/* 명단에 없는(사라진) 선수 id 정리 */
+function cleanTeam(t){
+  ['active','futures','lineup','bench','rotation','bullpen'].forEach(k=>{if(Array.isArray(t[k]))t[k]=t[k].filter((id,i,a)=>id&&P(id)&&a.indexOf(id)===i)});
+  if(t.pos)Object.keys(t.pos).forEach(id=>{if(!P(id))delete t.pos[id]});
+}
+/* 경기에 들어갈 타순은 항상 실제 타자 9명 */
+function gameLu(t){
+  const ok=id=>id&&P(id)&&P(id).type==='B';
+  const lu=t.lineup.filter((id,i,a)=>ok(id)&&a.indexOf(id)===i).slice(0,9);
+  if(lu.length<9){
+    const hl=id=>S.gday>=P(id).injUntil;
+    const pool=[...t.active.filter(id=>ok(id)&&hl(id)),...t.active.filter(ok),...t.futures.filter(id=>ok(id)&&hl(id)),...t.futures.filter(ok)];
+    for(const id of pool){if(lu.length>=9)break;if(!lu.includes(id))lu.push(id)}
+    t.lineup=lu.slice();t.bench=(t.bench||[]).filter(id=>ok(id)&&!lu.includes(id));
+  }
+  return lu;
+}
 function mkGame(h,a,opt={}){
   const T=[S.teams[a],S.teams[h]];
-  const sp=T.map(t=>{t.rot=nextSP(t);return t.rotation[t.rot]});
+  T.forEach(cleanTeam);
+  const sp=T.map(t=>{t.rot=nextSP(t);let id=t.rotation[t.rot];
+    if(!id||!P(id)){id=[...t.active,...t.futures].filter(x=>P(x).type==='P').sort((x,y)=>(P(x).fat||0)-(P(y).fat||0))[0];}
+    return id});
   const g={T:[a,h],inning:1,half:0,outs:0,bases:[null,null,null],score:[0,0],line:[[0],[]],hits:[0,0],errs:[0,0],bbs:[0,0],bo:[0,0],
-    lu:[T[0].lineup.slice(),T[1].lineup.slice()],bench:[T[0].bench.slice(),T[1].bench.slice()],
+    lu:[gameLu(T[0]),gameLu(T[1])],bench:[T[0].bench.filter(id=>P(id)),T[1].bench.filter(id=>P(id))],
     pit:sp.slice(),used:[[sp[0]],[sp[1]]],pc:{[sp[0]]:0,[sp[1]]:0},pr:{},po:{},box:{},log:[],
     over:false,walkoff:false,maxInn:opt.maxInn||11,post:!!opt.post,sk:opt.post?'ps':'st',win:-1,day:S.day};
   log(g,`1회초 · ${tName(a)} 공격`,'inn');
@@ -2119,7 +2139,8 @@ function mkCandidate(kind,type,role){
   scoutify(p);S.players[id]=p;return id;
 }
 function refreshMarket(){
-  if(S.market)S.market.list.forEach(id=>{const p=P(id);if(p&&p.fa)delete S.players[id]});
+  if(S.market){const on=new Set();S.teams.forEach(t=>[...t.active,...t.futures,...t.lineup,...(t.bench||[])].forEach(x=>on.add(x)));(S.waivers||[]).forEach(x=>on.add(x));
+    S.market.list.forEach(id=>{const p=P(id);if(p&&p.fa&&!on.has(id)&&!(S.watch||[]).includes(id))delete S.players[id]})}
   const list=[mkCandidate('F','P','SP'),mkCandidate('F','P','SP'),mkCandidate('F','P','RP'),mkCandidate('F','B'),mkCandidate('F','B'),
     mkCandidate('A','P','SP'),mkCandidate('A','P','RP'),mkCandidate('A',R()<.5?'B':'P','RP')];
   S.market={day:S.gday,list};
@@ -3992,7 +4013,7 @@ const ACT={
   setLen:a=>{TS.len=+a},
   reroll:()=>{TS.league=newLeague(TS.len)},
   start:()=>{const lg=TS.league;lg.len=TS.len;lg.sched=makeSchedule(TS.len);lg.schedV=2;lg.my=TS.sel;S=lg;S.coach=TS.name;S.teams.forEach(t=>t.mgrOrig=t.mgr);S.teams[S.my].mgr=TS.name;S.teams.forEach(t=>normRoster(t));S.tx=S.tx||[];S.teams.forEach(t=>ensureRotation(t));S.tx=[];buildTeamOf();refreshMarket();S.screen='intro';S.tab='lineup';save()},
-  cont:()=>{S=loadSave();if(S){(S.waivers||[]).forEach(id=>{const p=S.players[id];if(!p||p.exT!==undefined||p.cutFrom!==undefined)return;const n=(S.news||[]).slice().reverse().find(x=>x.text&&x.text.startsWith(p.name+'(')&&/방출/.test(x.text));if(n)p.exT=n.team});if(!S.faApplied)applyFA(S);if(!S.salApplied)applySal(S);faPatch();if(S.phase==='fa'){S.phase='stove';S.stove={step:2,day:0};S.st2='fa'}if(S.phase==='stove'&&S.stove&&!S.fa&&!S.stove.comp&&S.stove.step<3){openFA();refreshMarket()}buildTeamOf();migrateSched();S.teams.forEach(t=>normRoster(t));S.teams.forEach(t=>ensureRotation(t));buildTeamOf();S.screen=S.cur?'game':'hub';LASTLOG=S.cur?S.cur.log.length:0}},
+  cont:()=>{S=loadSave();if(S){try{S.teams.forEach(cleanTeam)}catch(_){}(S.waivers||[]).forEach(id=>{const p=S.players[id];if(!p||p.exT!==undefined||p.cutFrom!==undefined)return;const n=(S.news||[]).slice().reverse().find(x=>x.text&&x.text.startsWith(p.name+'(')&&/방출/.test(x.text));if(n)p.exT=n.team});if(!S.faApplied)applyFA(S);if(!S.salApplied)applySal(S);faPatch();if(S.phase==='fa'){S.phase='stove';S.stove={step:2,day:0};S.st2='fa'}if(S.phase==='stove'&&S.stove&&!S.fa&&!S.stove.comp&&S.stove.step<3){openFA();refreshMarket()}buildTeamOf();migrateSched();S.teams.forEach(t=>normRoster(t));S.teams.forEach(t=>ensureRotation(t));buildTeamOf();S.screen=S.cur?'game':'hub';LASTLOG=S.cur?S.cur.log.length:0}},
   askNew:()=>{MODAL=`<h3>새 게임을 시작할까요?</h3><p class="note">지금 진행 중인 ${S.season} 시즌 기록이 지워집니다.</p><div class="btnrow"><button class="btn primary" data-act="confirmNew">새 게임 시작</button><button class="btn ghost" data-act="closeModal">계속하기</button></div>`},
   confirmNew:()=>{MODAL='';clearSave();S=null;TS.named=false;TS.league=newLeague(TS.len)},
   tab:a=>{S.tab=a==='front'?'trade':a;S.dd=null},
